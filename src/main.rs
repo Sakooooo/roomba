@@ -1,5 +1,5 @@
-use iced::widget::{button, container, text};
 use iced::Element;
+use iced::widget::{button, container, text};
 
 use crate::views::player::CurrentTrack;
 
