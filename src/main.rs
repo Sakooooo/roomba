@@ -12,18 +12,26 @@ enum Screen {
     Player(),
 }
 
-struct State {}
+struct State {
+    counter: u64,
+}
 
-fn update(counter: &mut u64, message: Message) {
+fn new() -> State {
+    State { counter: 0 }
+}
+
+fn update(state: &mut State, message: Message) {
     match message {
-        Message::Increment => *counter += 1,
+        Message::Increment => state.counter += 1,
     }
 }
 
-fn view(counter: &u64) -> Element<'_, Message> {
-    button(text(counter)).on_press(Message::Increment).into()
+fn view(state: &State) -> Element<'_, Message> {
+    button(text(state.counter))
+        .on_press(Message::Increment)
+        .into()
 }
 
 fn main() -> iced::Result {
-    iced::run(update, view)
+    iced::application(new, update, view).run()
 }
