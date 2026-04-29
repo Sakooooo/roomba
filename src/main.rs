@@ -1,6 +1,8 @@
 use iced::widget::{button, container, text};
 use iced::Element;
 
+use crate::views::player::CurrentTrack;
+
 mod views;
 
 #[derive(Debug, Clone)]
@@ -18,12 +20,14 @@ pub enum Screen {
 pub struct State {
     counter: u64,
     screen: Screen,
+    current_track: Option<CurrentTrack>,
 }
 
 fn new() -> State {
     State {
         counter: 0,
         screen: Screen::Blah,
+        current_track: None,
     }
 }
 
@@ -42,7 +46,7 @@ fn view(state: &State) -> Element<'_, Message> {
                 .center_y(iced::Fill)
                 .into()
         }
-        Screen::Player => container(text("Player")).into(),
+        Screen::Player => views::player::view(state),
     }
 }
 
