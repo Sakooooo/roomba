@@ -13,7 +13,8 @@ pub enum Message {
     Increment,
     SwitchScreen(Screen),
     ScanLibrary(String),
-    LibraryScanned,
+    LibraryScanned(Vec<Track>),
+    ScanFail,
 }
 
 #[derive(Debug, Clone)]
@@ -49,11 +50,19 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             Task::none()
         }
         Message::ScanLibrary(path) => {
-            todo!();
+            // Task::none()
+            Task::perform(player::scan_library(path), |x| match x {
+                Ok(result) => Message::LibraryScanned(result),
+                Err(e) => Message::ScanFail,
+            })
+        }
+        Message::LibraryScanned(tracks) => {
+            println!("Wow!");
+            state.tracks = tracks;
             Task::none()
         }
-        Message::LibraryScanned => {
-            println!("Wow!");
+        Message::ScanFail => {
+            println!("Fail!");
             Task::none()
         }
     }
