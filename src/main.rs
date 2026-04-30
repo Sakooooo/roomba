@@ -1,7 +1,10 @@
-use iced::Element;
-use iced::widget::{button, container, text};
+use std::sync::Arc;
 
-use crate::views::player::CurrentTrack;
+use iced::futures::lock::Mutex;
+use iced::widget::{button, container, text};
+use iced::{Element, Task};
+
+use crate::views::player::{self, CurrentTrack, Track};
 
 mod views;
 
@@ -9,6 +12,8 @@ mod views;
 pub enum Message {
     Increment,
     SwitchScreen(Screen),
+    ScanLibrary(String),
+    LibraryScanned,
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +26,7 @@ pub struct State {
     counter: u64,
     screen: Screen,
     current_track: Option<CurrentTrack>,
+    tracks: Vec<Track>,
 }
 
 fn new() -> State {
@@ -28,13 +34,28 @@ fn new() -> State {
         counter: 0,
         screen: Screen::Blah,
         current_track: None,
+        tracks: Vec::new(),
     }
 }
 
-fn update(state: &mut State, message: Message) {
+fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
-        Message::Increment => state.counter += 1,
-        Message::SwitchScreen(screen) => state.screen = screen,
+        Message::Increment => {
+            state.counter += 1;
+            Task::none()
+        }
+        Message::SwitchScreen(screen) => {
+            state.screen = screen;
+            Task::none()
+        }
+        Message::ScanLibrary(path) => {
+            todo!();
+            Task::none()
+        }
+        Message::LibraryScanned => {
+            println!("Wow!");
+            Task::none()
+        }
     }
 }
 

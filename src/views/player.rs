@@ -1,7 +1,10 @@
+use std::path::Path;
+
 use crate::{Message, State};
-use audiotags::{AudioTag, MimeType, Tag};
-use iced::Element;
+use audiotags::{Album, AudioTag, MimeType, Tag};
+use iced::futures::lock::MutexGuard;
 use iced::widget::{button, column, container, image as img, text};
+use iced::Element;
 use image::DynamicImage;
 
 pub struct CurrentTrack {
@@ -14,6 +17,9 @@ impl CurrentTrack {
         Ok(Self { metadata })
     }
 }
+
+#[derive(Debug)]
+pub struct Track {}
 
 pub fn update(state: &mut State, message: Message) {}
 
@@ -28,7 +34,7 @@ pub fn view(state: &State) -> Element<'static, Message> {
                 container("no album cover")
             }
         },
-        button("test")
+        button("Scan Library").on_press(Message::ScanLibrary("~/music".to_string()))
     ]
     .into()
 }
