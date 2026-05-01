@@ -65,7 +65,6 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             })
         }
         Message::LibraryScanned(tracks) => {
-            println!("Wow!");
             state.tracks = tracks;
             Task::none()
         }

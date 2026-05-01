@@ -7,6 +7,9 @@ use iced::Element;
 use iced::application::IntoBoot;
 use iced::futures::lock::MutexGuard;
 use iced::widget::{button, column, container, image as img, text};
+use iced::Element;
+use iced::widget::{button, column, container, image as img, row, scrollable, text};
+use iced::Element;
 use image::DynamicImage;
 
 pub struct CurrentTrack {
@@ -180,7 +183,7 @@ pub async fn scan_library(path: String) -> Result<Vec<Track>, PlayerError> {
 pub fn update(state: &mut State, message: Message) {}
 
 pub fn view(state: &State) -> Element<'static, Message> {
-    container(column![
+    container(row![
         {
             if let Some(current_track) = &state.current_track
                 && let Some(album_cover) = &current_track.track.cover
@@ -192,6 +195,12 @@ pub fn view(state: &State) -> Element<'static, Message> {
         },
         button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())),
         button("Pick Library").on_press(Message::PickLibrary)
+        button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string()))
+        button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())),
+        // this lags the shit out of the app
+        scrollable(column(state.tracks.iter().map(|item| {
+            button(text(item.title.clone().unwrap())).into()
+        }))),
     ])
     .center_x(iced::Fill)
     .center_y(iced::Fill)
