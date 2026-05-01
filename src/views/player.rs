@@ -177,7 +177,7 @@ pub async fn scan_library(path: String) -> Result<Vec<Track>, PlayerError> {
 pub fn update(state: &mut State, message: Message) {}
 
 pub fn view(state: &State) -> Element<'static, Message> {
-    column![
+    container(column![
         {
             if let Some(current_track) = &state.current_track
                 && let Some(album_cover) = &current_track.track.cover
@@ -188,6 +188,8 @@ pub fn view(state: &State) -> Element<'static, Message> {
             }
         },
         button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string()))
-    ]
+    ])
+    .center_x(iced::Fill)
+    .center_y(iced::Fill)
     .into()
 }
