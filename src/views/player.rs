@@ -4,12 +4,9 @@ use std::path::Path;
 use crate::{Message, State};
 use audiotags::{Album, AudioTag, MimeType, Tag};
 use iced::Element;
-use iced::Element;
-use iced::Element;
 use iced::application::IntoBoot;
 use iced::futures::lock::MutexGuard;
 use iced::widget::{button, column, container, image as img, row, scrollable, text};
-use iced::widget::{button, column, container, image as img, text};
 use image::DynamicImage;
 
 pub struct CurrentTrack {
