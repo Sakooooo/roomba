@@ -3,6 +3,7 @@ use std::sync::Arc;
 use iced::futures::lock::Mutex;
 use iced::widget::{button, container, text};
 use iced::{Element, Task};
+use rfd::AsyncFileDialog;
 
 use crate::views::player::{self, CurrentTrack, Track};
 
@@ -12,6 +13,7 @@ mod views;
 pub enum Message {
     Increment,
     SwitchScreen(Screen),
+    PickLibrary,
     ScanLibrary(String),
     LibraryScanned(Vec<Track>),
     ScanFail,
@@ -28,6 +30,7 @@ pub struct State {
     screen: Screen,
     current_track: Option<CurrentTrack>,
     tracks: Vec<Track>,
+    library: Option<String>,
 }
 
 fn new() -> State {
@@ -36,6 +39,7 @@ fn new() -> State {
         screen: Screen::Blah,
         current_track: None,
         tracks: Vec::new(),
+        library: None,
     }
 }
 
@@ -49,6 +53,10 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             state.screen = screen;
             Task::none()
         }
+        Message::PickLibrary => Task::perform(AsyncFileDialog::new().pick_folder(), |x| match x {
+            Some(x) => Message::ScanLibrary(x.path().to_string_lossy().to_string()),
+            None => Message::ScanFail,
+        }),
         Message::ScanLibrary(path) => {
             // Task::none()
             Task::perform(player::scan_library(path), |x| match x {

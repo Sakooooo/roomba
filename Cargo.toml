@@ -8,6 +8,7 @@ audiotags = "0.5.0"
 bytemuck = "1.25.0"
 iced = { version = "0.14.0", features = ["image"] }
 image = "0.25.10"
+rfd = "0.17.2"
 
 [profile.dev]
 opt-level = 0
