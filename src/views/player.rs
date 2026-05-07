@@ -4,12 +4,12 @@ use std::path::Path;
 use crate::{Message, State};
 use audiotags::{Album, AudioTag, MimeType, Tag};
 use iced::Element;
+use iced::Element;
+use iced::Element;
 use iced::application::IntoBoot;
 use iced::futures::lock::MutexGuard;
-use iced::widget::{button, column, container, image as img, text};
-use iced::Element;
 use iced::widget::{button, column, container, image as img, row, scrollable, text};
-use iced::Element;
+use iced::widget::{button, column, container, image as img, text};
 use image::DynamicImage;
 
 pub struct CurrentTrack {
@@ -193,14 +193,15 @@ pub fn view(state: &State) -> Element<'static, Message> {
                 container("no album cover")
             }
         },
-        button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())),
-        button("Pick Library").on_press(Message::PickLibrary)
-        button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string()))
+        button("Pick Library").on_press(Message::PickLibrary),
         button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())),
         // this lags the shit out of the app
-        scrollable(column(state.tracks.iter().map(|item| {
-            button(text(item.title.clone().unwrap())).into()
-        }))),
+        scrollable(column(
+            state
+                .tracks
+                .iter()
+                .map(|item| { button(text(item.title.clone().unwrap())).into() })
+        )),
     ])
     .center_x(iced::Fill)
     .center_y(iced::Fill)
