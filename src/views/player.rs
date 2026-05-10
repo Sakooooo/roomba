@@ -1,12 +1,15 @@
+use std::collections::BTreeMap;
 use std::fs::DirEntry;
 use std::path::Path;
 
 use crate::{Message, State};
 use audiotags::{Album, AudioTag, MimeType, Tag};
-use iced::Element;
 use iced::application::IntoBoot;
 use iced::futures::lock::MutexGuard;
-use iced::widget::{button, column, container, image as img, row, scrollable, text};
+use iced::widget::{
+    button, column, container, image as img, row, scrollable, text, Column, Row, Scrollable,
+};
+use iced::Element;
 use image::DynamicImage;
 
 pub struct CurrentTrack {
@@ -20,6 +23,7 @@ pub enum PlayerError {
 
 #[derive(Debug, Default, Clone)]
 pub struct Track {
+    track_number: Option<u16>,
     title: Option<String>,
     artist: Option<String>,
     album_artist: Option<String>,
@@ -32,6 +36,8 @@ impl Track {
         let mut result = Self::default();
 
         let metadata = Tag::new().read_from_path(path)?;
+
+        result.track_number = metadata.track_number();
 
         if let Some(title) = metadata.title() {
             result.title = Some(title.to_string());
@@ -53,7 +59,7 @@ impl Track {
     }
 }
 
-pub async fn scan_library(path: String) -> Result<Vec<Track>, PlayerError> {
+pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, PlayerError> {
     let library_path = Path::new(&path);
     if !library_path.exists() {
         println!("fail");
@@ -64,14 +70,12 @@ pub async fn scan_library(path: String) -> Result<Vec<Track>, PlayerError> {
 
     match library_path.read_dir() {
         Ok(files) => {
-            dbg!(&files);
             for file in files {
                 match file {
                     Ok(entry) => {
                         let mut collected_folders: Vec<DirEntry> = Vec::new();
                         match entry.file_type() {
                             Ok(info) => {
-                                dbg!(&info);
                                 if info.is_dir() {
                                     let to_search = entry.path().read_dir();
                                     match to_search {
@@ -111,11 +115,9 @@ pub async fn scan_library(path: String) -> Result<Vec<Track>, PlayerError> {
                             }
                         };
 
-                        dbg!(&collected_folders);
                         for dir in collected_folders {
                             match dir.path().read_dir() {
                                 Ok(collected_folder) => {
-                                    dbg!(&collected_folder);
                                     for file in collected_folder {
                                         match file {
                                             Ok(result) => {
@@ -123,7 +125,6 @@ pub async fn scan_library(path: String) -> Result<Vec<Track>, PlayerError> {
                                                     result.path().to_string_lossy().to_string();
                                                 match Track::new(item_path.clone()) {
                                                     Ok(track) => {
-                                                        dbg!(&track.title);
                                                         tracks.push(track);
                                                     }
                                                     Err(
@@ -173,32 +174,64 @@ pub async fn scan_library(path: String) -> Result<Vec<Track>, PlayerError> {
         }
     }
 
-    dbg!(&tracks.len());
-    return Ok(tracks);
+    let mut map: BTreeMap<String, Vec<Track>> = BTreeMap::new();
+
+    for track in tracks {
+        if let Some(album_title) = track.album_title.clone() {
+            map.entry(album_title).or_insert_with(Vec::new).push(track);
+        } else {
+            map.entry("No Album".to_string())
+                .or_insert_with(Vec::new)
+                .push(track);
+        };
+    }
+
+    for tracks in map.values_mut() {
+        tracks.sort_by_key(|track| track.track_number.unwrap_or(67));
+    }
+
+    return Ok(map);
 }
 
 pub fn update(state: &mut State, message: Message) {}
 
 pub fn view(state: &State) -> Element<'static, Message> {
+    let album_cover = if let Some(current_track) = &state.current_track && let Some(cover) = &current_track.track.cover {
+        container(img(img::Handle::from_bytes(cover.to_vec())))
+    } else {
+        container("No Cover!")
+    };
+
+    // let tracks: Column<Message> = state
+    //     .tracks
+    //     .clone()
+    //     .into_iter()
+    //     .map(|(album, tracks)| -> Element<Message> {
+    //         let album_column: Column<Message> =
+    //             tracks.into_iter().fold(Column::new(), |column, track| {
+    //                 column.push(button(text(track.title.clone().unwrap())))
+    //             });
+
+    //         Column::new().push(text(album)).push(album_column).into()
+    //     });
+
+    let tracks: Column<Message> = state.tracks.clone()
+        .into_iter().fold(
+            Column::new(),
+            |col, (album, tracks)| {
+                let album_column: Column<Message> = tracks.into_iter().fold(Column::new(), |col, track| {
+                    col.push(button(text(track.title.clone().unwrap())))
+                });
+
+                col.push(text(album)).push(album_column)
+            });
+
     container(row![
-        {
-            if let Some(current_track) = &state.current_track
-                && let Some(album_cover) = &current_track.track.cover
-            {
-                container(img(img::Handle::from_bytes(album_cover.to_vec())))
-            } else {
-                container("no album cover")
-            }
-        },
+        album_cover,
         button("Pick Library").on_press(Message::PickLibrary),
         button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())),
         // this lags the shit out of the app
-        scrollable(column(
-            state
-                .tracks
-                .iter()
-                .map(|item| { button(text(item.title.clone().unwrap())).into() })
-        )),
+        scrollable(tracks)
     ])
     .center_x(iced::Fill)
     .center_y(iced::Fill)

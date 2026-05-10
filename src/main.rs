@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use iced::futures::lock::Mutex;
@@ -15,7 +16,7 @@ pub enum Message {
     SwitchScreen(Screen),
     PickLibrary,
     ScanLibrary(String),
-    LibraryScanned(Vec<Track>),
+    LibraryScanned(BTreeMap<String, Vec<Track>>),
     ScanFail,
 }
 
@@ -29,7 +30,7 @@ pub struct State {
     counter: u64,
     screen: Screen,
     current_track: Option<CurrentTrack>,
-    tracks: Vec<Track>,
+    tracks: BTreeMap<String, Vec<Track>>,
     library: Option<String>,
 }
 
@@ -38,7 +39,7 @@ fn new() -> State {
         counter: 0,
         screen: Screen::Blah,
         current_track: None,
-        tracks: Vec::new(),
+        tracks: BTreeMap::new(),
         library: None,
     }
 }
