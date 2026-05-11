@@ -18,6 +18,7 @@ pub enum Message {
     ScanLibrary(String),
     LibraryScanned(BTreeMap<String, Vec<Track>>),
     ScanFail,
+    PlaySong(Track),
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +72,14 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         }
         Message::ScanFail => {
             println!("Fail!");
+            Task::none()
+        },
+        Message::PlaySong(track) => {
+            let current_track = Some(CurrentTrack {
+                track
+            });
+            
+            state.current_track = current_track;
             Task::none()
         }
     }

@@ -13,7 +13,7 @@ use iced::Element;
 use image::DynamicImage;
 
 pub struct CurrentTrack {
-    track: Track, // state
+    pub track: Track, // state
 }
 
 pub enum PlayerError {
@@ -23,12 +23,12 @@ pub enum PlayerError {
 
 #[derive(Debug, Default, Clone)]
 pub struct Track {
-    track_number: Option<u16>,
-    title: Option<String>,
-    artist: Option<String>,
-    album_artist: Option<String>,
-    album_title: Option<String>,
-    cover: Option<Vec<u8>>,
+    pub track_number: Option<u16>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album_artist: Option<String>,
+    pub album_title: Option<String>,
+    pub cover: Option<Vec<u8>>,
 }
 
 impl Track {
@@ -197,7 +197,7 @@ pub fn update(state: &mut State, message: Message) {}
 
 pub fn view(state: &State) -> Element<'static, Message> {
     let album_cover = if let Some(current_track) = &state.current_track && let Some(cover) = &current_track.track.cover {
-        container(img(img::Handle::from_bytes(cover.to_vec())))
+        container(img(img::Handle::from_bytes(cover.to_vec())).width(512))
     } else {
         container("No Cover!")
     };
@@ -220,7 +220,7 @@ pub fn view(state: &State) -> Element<'static, Message> {
             Column::new(),
             |col, (album, tracks)| {
                 let album_column: Column<Message> = tracks.into_iter().fold(Column::new(), |col, track| {
-                    col.push(button(text(track.title.clone().unwrap())))
+                    col.push(button(text(track.title.clone().unwrap())).on_press(Message::PlaySong(track)))
                 });
 
                 col.push(text(album)).push(album_column)
