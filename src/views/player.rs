@@ -208,16 +208,20 @@ pub fn view(state: &State) -> Element<'static, Message> {
         container(img(img::Handle::from_bytes(MISSING_COVER_BYTES)).width(512))
     };
 
-    let current_track = container(column![
-        album_cover,
-        container(row![
-            button("previous"),
-            button("play/pause").on_press(Message::PlayPause),
-            button("next")
-        ])
-    ].align_x(Horizontal::Center));
+    let current_track = container(
+        column![
+            album_cover,
+            container(row![
+                button("previous"),
+                button("play/pause").on_press(Message::PlayPause),
+                button("next")
+            ])
+        ]
+        .align_x(Horizontal::Center),
+    );
 
-    let tracks: Column<Message> = state
+    let tracks: Column<Message> =
+        state
             .tracks
             .clone()
             .into_iter()
@@ -226,20 +230,26 @@ pub fn view(state: &State) -> Element<'static, Message> {
                     tracks.into_iter().fold(Column::new(), |col, track| {
                         col.push(
                             button(text(track.title.clone().unwrap()))
-                                .on_press(Message::PlaySong(track)).width(iced::Fill),
+                                .on_press(Message::PlaySong(track))
+                                .width(iced::Fill),
                         )
                     });
 
-                col.push(container(text(album)).center_y(iced::Fill).height(25)).push(album_column)
+                col.push(container(text(album)).center_y(iced::Fill).height(25))
+                    .push(album_column)
             });
 
-    container(Row::new()
-        .push(current_track)
-        .push(button("Pick Library").on_press(Message::PickLibrary))
-        .push(button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())))
-        // this lags the shit out of the app
-        .push(container(scrollable(tracks)).width(1000))
-        .align_y(Vertical::Center)
+    container(
+        Row::new()
+            .push(current_track)
+            .push(button("Pick Library").on_press(Message::PickLibrary))
+            .push(
+                button("Scan Library")
+                    .on_press(Message::ScanLibrary("/home/user/music".to_string())),
+            )
+            // this lags the shit out of the app
+            .push(container(scrollable(tracks)).width(1000))
+            .align_y(Vertical::Center),
     )
     .center_x(iced::Fill)
     .center_y(iced::Fill)
