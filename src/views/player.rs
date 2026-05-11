@@ -4,13 +4,14 @@ use std::path::Path;
 
 use crate::{Message, State};
 use audiotags::{Album, AudioTag, MimeType, Tag};
+use iced::Element;
 use iced::application::IntoBoot;
 use iced::futures::lock::MutexGuard;
 use iced::widget::{
-    button, column, container, image as img, row, scrollable, text, Column, Row, Scrollable,
+    Column, Row, Scrollable, button, column, container, image as img, row, scrollable, text,
 };
-use iced::Element;
 use image::DynamicImage;
+use rodio::Player;
 
 pub struct CurrentTrack {
     pub track: Track, // state
@@ -199,22 +200,22 @@ pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, 
 pub fn update(state: &mut State, message: Message) {}
 
 pub fn view(state: &State) -> Element<'static, Message> {
-    let album_cover = if let Some(current_track) = &state.current_track && let Some(cover) = &current_track.track.cover {
+    let album_cover = if let Some(current_track) = &state.current_track
+        && let Some(cover) = &current_track.track.cover
+    {
         container(img(img::Handle::from_bytes(cover.to_vec())).width(512))
     } else {
         container("No Cover!")
     };
 
-    let current_track = container(
-        column![
-            album_cover,
-            row![
-                button("previous"),
-                button("play/pause"),
-                button("next")
-            ]
+    let current_track = container(column![
+        album_cover,
+        row![
+            button("previous"),
+            button("play/pause").on_press(Message::PlayPause),
+            button("next")
         ]
-    );
+    ]);
 
     // let tracks: Column<Message> = state
     //     .tracks
@@ -229,13 +230,19 @@ pub fn view(state: &State) -> Element<'static, Message> {
     //         Column::new().push(text(album)).push(album_column).into()
     //     });
 
-    let tracks: Column<Message> = state.tracks.clone()
-        .into_iter().fold(
-            Column::new(),
-            |col, (album, tracks)| {
-                let album_column: Column<Message> = tracks.into_iter().fold(Column::new(), |col, track| {
-                    col.push(button(text(track.title.clone().unwrap())).on_press(Message::PlaySong(track)))
-                });
+    let tracks: Column<Message> =
+        state
+            .tracks
+            .clone()
+            .into_iter()
+            .fold(Column::new(), |col, (album, tracks)| {
+                let album_column: Column<Message> =
+                    tracks.into_iter().fold(Column::new(), |col, track| {
+                        col.push(
+                            button(text(track.title.clone().unwrap()))
+                                .on_press(Message::PlaySong(track)),
+                        )
+                    });
 
                 col.push(text(album)).push(album_column)
             });

@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
+use std::fs::File;
 use std::sync::Arc;
 
 use iced::futures::lock::Mutex;
 use iced::widget::{button, container, text};
 use iced::{Element, Task};
 use rfd::AsyncFileDialog;
+use rodio::{Decoder, Player};
 
 use crate::views::player::{self, CurrentTrack, Track};
 
@@ -21,7 +23,7 @@ pub enum Message {
     PlaySong(Track),
     PreviousTrack,
     PlayPause,
-    NextTrack
+    NextTrack,
 }
 
 #[derive(Debug, Clone)]
@@ -36,15 +38,34 @@ pub struct State {
     current_track: Option<CurrentTrack>,
     tracks: BTreeMap<String, Vec<Track>>,
     library: Option<String>,
+    sink_handle: Option<rodio::MixerDeviceSink>,
+    player: Option<Player>,
 }
 
 fn new() -> State {
+    let sink_handle = match rodio::DeviceSinkBuilder::open_default_sink() {
+        Ok(sink) => Some(sink),
+        Err(e) => {
+            println!("ERROR: Failed to get DeviceSink, audio will not play!!!");
+            println!("{e}");
+            None
+        }
+    };
+
+    let player = if let Some(sink) = &sink_handle {
+        Some(Player::connect_new(sink.mixer()))
+    } else {
+        None
+    };
+
     State {
         counter: 0,
         screen: Screen::Blah,
         current_track: None,
         tracks: BTreeMap::new(),
         library: None,
+        sink_handle,
+        player,
     }
 }
 
@@ -76,24 +97,46 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::ScanFail => {
             println!("Fail!");
             Task::none()
-        },
+        }
         Message::PlaySong(track) => {
-            let current_track = Some(CurrentTrack {
-                track
-            });
-            
+            let file = std::io::BufReader::new(File::open(&track.filepath).unwrap());
+
+            if let Some(player) = &state.player {
+                if !player.empty() {
+                    player.stop();
+                    player.clear();
+                }
+                let source = match Decoder::try_from(file) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        println!("Failed to decode audio!!! {e}");
+                        return Task::none();
+                    }
+                };
+                player.append(source);
+                if player.is_paused() {
+                    player.play();
+                }
+            }
+
+            let current_track = Some(CurrentTrack { track });
+
             state.current_track = current_track;
+
             Task::none()
-        },
-        Message::PreviousTrack => {
-            Task::none()
-        },
+        }
+        Message::PreviousTrack => Task::none(),
         Message::PlayPause => {
+            if let Some(player) = &state.player {
+                if player.is_paused() {
+                    player.play();
+                } else {
+                    player.pause();
+                };
+            }
             Task::none()
-        },
-        Message::NextTrack => {
-            Task::none()
-        },
+        }
+        Message::NextTrack => Task::none(),
     }
 }
 
