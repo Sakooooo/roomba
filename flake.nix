@@ -39,6 +39,8 @@
             cargo
             clippy
             rustfmt
+	    pkg-config
+	    alsa-lib # for rodio
           ];
 
           env.RUSTFLAGS = "-C link-arg=-Wl,-rpath,${nixpkgs.lib.makeLibraryPath dlopenLibraries}";

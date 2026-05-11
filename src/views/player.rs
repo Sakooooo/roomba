@@ -205,6 +205,17 @@ pub fn view(state: &State) -> Element<'static, Message> {
         container("No Cover!")
     };
 
+    let current_track = container(
+        column![
+            album_cover,
+            row![
+                button("previous"),
+                button("play/pause"),
+                button("next")
+            ]
+        ]
+    );
+
     // let tracks: Column<Message> = state
     //     .tracks
     //     .clone()
@@ -230,7 +241,7 @@ pub fn view(state: &State) -> Element<'static, Message> {
             });
 
     container(row![
-        album_cover,
+        current_track,
         button("Pick Library").on_press(Message::PickLibrary),
         button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())),
         // this lags the shit out of the app
