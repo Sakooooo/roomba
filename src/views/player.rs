@@ -29,13 +29,14 @@ pub struct Track {
     pub album_artist: Option<String>,
     pub album_title: Option<String>,
     pub cover: Option<Vec<u8>>,
+    pub filepath: String,
 }
 
 impl Track {
     pub fn new(path: String) -> Result<Self, audiotags::error::Error> {
         let mut result = Self::default();
 
-        let metadata = Tag::new().read_from_path(path)?;
+        let metadata = Tag::new().read_from_path(&path)?;
 
         result.track_number = metadata.track_number();
 
@@ -54,6 +55,8 @@ impl Track {
                 result.cover = Some(cover.data.to_vec());
             }
         };
+
+        result.filepath = path;
 
         Ok(result)
     }
@@ -231,7 +234,7 @@ pub fn view(state: &State) -> Element<'static, Message> {
         button("Pick Library").on_press(Message::PickLibrary),
         button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())),
         // this lags the shit out of the app
-        scrollable(tracks)
+        container(scrollable(tracks))
     ])
     .center_x(iced::Fill)
     .center_y(iced::Fill)
