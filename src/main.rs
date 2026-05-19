@@ -153,5 +153,7 @@ fn view(state: &State) -> Element<'_, Message> {
 }
 
 fn main() -> iced::Result {
+    // TODO: cfg-if this
+    dioxus_devtools::connect_subsecond();
     iced::application(new, update, view).run()
 }

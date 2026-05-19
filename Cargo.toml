@@ -6,10 +6,15 @@ edition = "2024"
 [dependencies]
 audiotags = "0.5.0"
 bytemuck = "1.25.0"
+dioxus-devtools = "0.7.9"
 iced = { version = "0.14.0", features = ["image"] }
 image = "0.25.10"
 rfd = "0.17.2"
 rodio = "0.22.2"
+subsecond = "0.7.9"
+
+[features]
+debug = ["iced/hot"]
 
 [profile.dev]
 opt-level = 0
