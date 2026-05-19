@@ -5,6 +5,7 @@ use std::path::Path;
 use crate::{Message, State};
 use audiotags::{Album, AudioTag, MimeType, Tag};
 use iced::Element;
+use iced::alignment::{Horizontal, Vertical};
 use iced::application::IntoBoot;
 use iced::futures::lock::MutexGuard;
 use iced::widget::{
@@ -12,6 +13,8 @@ use iced::widget::{
 };
 use image::DynamicImage;
 use rodio::Player;
+
+const MISSING_COVER_BYTES: &'static [u8] = include_bytes!("./missing.png");
 
 pub struct CurrentTrack {
     pub track: Track, // state
@@ -137,7 +140,7 @@ pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, 
                                                         ),
                                                     ) => {
                                                         println!(
-                                                            "File {} is unsupported by audiotags library, skipping... {}",
+                                                            "File {} has unsupported format {}, skipping...",
                                                             item_path, e
                                                         );
                                                     }
@@ -205,33 +208,19 @@ pub fn view(state: &State) -> Element<'static, Message> {
     {
         container(img(img::Handle::from_bytes(cover.to_vec())).width(512))
     } else {
-        container("No Cover!")
+        container(img(img::Handle::from_bytes(MISSING_COVER_BYTES)).width(512))
     };
 
     let current_track = container(column![
         album_cover,
-        row![
+        container(row![
             button("previous"),
             button("play/pause").on_press(Message::PlayPause),
             button("next")
-        ]
-    ]);
+        ])
+    ].align_x(Horizontal::Center));
 
-    // let tracks: Column<Message> = state
-    //     .tracks
-    //     .clone()
-    //     .into_iter()
-    //     .map(|(album, tracks)| -> Element<Message> {
-    //         let album_column: Column<Message> =
-    //             tracks.into_iter().fold(Column::new(), |column, track| {
-    //                 column.push(button(text(track.title.clone().unwrap())))
-    //             });
-
-    //         Column::new().push(text(album)).push(album_column).into()
-    //     });
-
-    let tracks: Column<Message> =
-        state
+    let tracks: Column<Message> = state
             .tracks
             .clone()
             .into_iter()
@@ -240,20 +229,21 @@ pub fn view(state: &State) -> Element<'static, Message> {
                     tracks.into_iter().fold(Column::new(), |col, track| {
                         col.push(
                             button(text(track.title.clone().unwrap()))
-                                .on_press(Message::PlaySong(track)),
+                                .on_press(Message::PlaySong(track)).width(iced::Fill),
                         )
                     });
 
-                col.push(text(album)).push(album_column)
+                col.push(container(text(album)).center_y(iced::Fill).height(25)).push(album_column)
             });
 
-    container(row![
-        current_track,
-        button("Pick Library").on_press(Message::PickLibrary),
-        button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())),
+    container(Row::new()
+        .push(current_track)
+        .push(button("Pick Library").on_press(Message::PickLibrary))
+        .push(button("Scan Library").on_press(Message::ScanLibrary("/home/user/music".to_string())))
         // this lags the shit out of the app
-        container(scrollable(tracks))
-    ])
+        .push(container(scrollable(tracks)).width(1000))
+        .align_y(Vertical::Center)
+    )
     .center_x(iced::Fill)
     .center_y(iced::Fill)
     .into()
