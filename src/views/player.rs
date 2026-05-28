@@ -15,7 +15,6 @@ use image::DynamicImage;
 use rodio::Player;
 
 const MISSING_COVER_BYTES: &'static [u8] = include_bytes!("./missing.png");
-
 pub struct CurrentTrack {
     pub track: Track, // state
 }
@@ -203,10 +202,8 @@ pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, 
 pub fn update(state: &mut State, message: Message) {}
 
 pub fn view(state: &State) -> Element<'static, Message> {
-    let album_cover = if let Some(current_track) = &state.current_track
-        && let Some(cover) = &current_track.track.cover
-    {
-        container(img(img::Handle::from_bytes(cover.to_vec())).width(512))
+    let album_cover = if let Some(cover) = &state.current_track_cover {
+        container(img(cover)).width(512)
     } else {
         container(img(img::Handle::from_bytes(MISSING_COVER_BYTES)).width(512))
     };

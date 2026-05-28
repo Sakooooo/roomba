@@ -8,7 +8,7 @@ use iced::{Element, Task};
 use rfd::AsyncFileDialog;
 use rodio::{Decoder, Player};
 
-use crate::views::player::{self, CurrentTrack, Track};
+use crate::views::player::{self, Track};
 
 mod views;
 
@@ -35,7 +35,8 @@ pub enum Screen {
 pub struct State {
     counter: u64,
     screen: Screen,
-    current_track: Option<CurrentTrack>,
+    current_track: Option<Track>,
+    current_track_cover: Option<iced::widget::image::Handle>,
     tracks: BTreeMap<String, Vec<Track>>,
     library: Option<String>,
     sink_handle: Option<rodio::MixerDeviceSink>,
@@ -62,6 +63,7 @@ fn new() -> State {
         counter: 0,
         screen: Screen::Blah,
         current_track: None,
+        current_track_cover: None,
         tracks: BTreeMap::new(),
         library: None,
         sink_handle,
@@ -119,9 +121,11 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 }
             }
 
-            let current_track = Some(CurrentTrack { track });
-
-            state.current_track = current_track;
+            state.current_track_cover = track
+                .cover
+                .as_ref()
+                .map(|c| iced::widget::image::Handle::from_bytes(c.to_vec()));
+            state.current_track = Some(track);
 
             Task::none()
         }
