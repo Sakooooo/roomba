@@ -203,9 +203,14 @@ pub fn update(state: &mut State, message: Message) {}
 
 pub fn view(state: &State) -> Element<'static, Message> {
     let album_cover = if let Some(cover) = &state.current_track_cover {
-        container(img(cover)).width(512)
+        container(img(cover).expand(true))
+            .width(512)
+            .align_x(Horizontal::Center)
+            .align_y(Vertical::Center)
     } else {
         container(img(img::Handle::from_bytes(MISSING_COVER_BYTES)).width(512))
+            .align_x(Horizontal::Center)
+            .align_y(Vertical::Center)
     };
 
     let current_track = container(
