@@ -23,6 +23,7 @@ pub enum Message {
     PlaySong(Track),
     PreviousTrack,
     PlayPause,
+    Stop,
     NextTrack,
 }
 
@@ -138,6 +139,16 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                     player.pause();
                 };
             }
+            Task::none()
+        }
+        Message::Stop => {
+            if let Some(player) = &state.player {
+                player.stop();
+
+                state.current_track = None;
+                state.current_track_cover = None;
+            }
+
             Task::none()
         }
         Message::NextTrack => Task::none(),

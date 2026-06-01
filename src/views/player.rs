@@ -4,13 +4,13 @@ use std::path::Path;
 
 use crate::{Message, State};
 use audiotags::{Album, AudioTag, MimeType, Tag};
-use iced::Element;
 use iced::alignment::{Horizontal, Vertical};
 use iced::application::IntoBoot;
 use iced::futures::lock::MutexGuard;
 use iced::widget::{
-    Column, Row, Scrollable, button, column, container, image as img, row, scrollable, text,
+    button, column, container, image as img, row, scrollable, text, Column, Row, Scrollable,
 };
+use iced::Element;
 use image::DynamicImage;
 use rodio::Player;
 
@@ -219,7 +219,8 @@ pub fn view(state: &State) -> Element<'static, Message> {
             container(row![
                 button("previous"),
                 button("play/pause").on_press(Message::PlayPause),
-                button("next")
+                button("next"),
+                button("stop").on_press(Message::Stop)
             ])
         ]
         .align_x(Horizontal::Center),
