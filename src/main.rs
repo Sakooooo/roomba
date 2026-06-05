@@ -54,11 +54,9 @@ fn new() -> State {
         }
     };
 
-    let player = if let Some(sink) = &sink_handle {
-        Some(Player::connect_new(sink.mixer()))
-    } else {
-        None
-    };
+    let player = sink_handle
+        .as_ref()
+        .map(|sink| Player::connect_new(sink.mixer()));
 
     State {
         counter: 0,
