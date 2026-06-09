@@ -416,7 +416,8 @@ fn view(state: &State) -> Element<'_, Message> {
 }
 
 fn main() -> iced::Result {
-    // TODO: cfg-if this
+    #[cfg(feature = "debug")]
     dioxus_devtools::connect_subsecond();
+
     iced::application(new, update, view).run()
 }
