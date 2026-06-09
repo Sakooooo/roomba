@@ -1,9 +1,9 @@
 # issues
 
-- [x] issue when album covers are small, doesn't center or stretch
-- [x] no stop button
-- [ ] library scanning progress
+- [ ] refactor code everythings a mess and player.rs and main.rs are way too long
+- [ ] refactor library scanning
 - [ ] cache scanned library somehow
+- [ ] library scanning progress
 
 # actual things
 
