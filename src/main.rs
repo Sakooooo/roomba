@@ -2,11 +2,12 @@ use std::collections::BTreeMap;
 use std::fs::File;
 
 use futures::TryFutureExt;
+use iced::wgpu::wgc::command::Command;
 use iced::widget::{button, container, text};
 use iced::{Element, Task};
 use mpris_server::{
     LocalPlaylistsInterface, LocalTrackListInterface, LoopStatus, Metadata, PlaybackRate,
-    PlaybackStatus, PlayerInterface, RootInterface, Server, Time, TrackId, Uri, Volume,
+    PlaybackStatus, PlayerInterface, Property, RootInterface, Server, Time, TrackId, Uri, Volume,
 };
 use mpris_server::{LocalRootInterface, zbus::fdo};
 use rfd::AsyncFileDialog;
@@ -19,6 +20,7 @@ mod views;
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    None,
     Increment,
     SwitchScreen(Screen),
     PickLibrary,
@@ -38,7 +40,11 @@ pub enum Screen {
     Player,
 }
 
-pub struct MprisHandler {}
+#[derive(Default, Clone)]
+pub struct MprisHandler {
+    current_track: Option<Track>,
+    current_track_cover: Option<iced::widget::image::Handle>,
+}
 
 impl RootInterface for MprisHandler {
     async fn raise(&self) -> fdo::Result<()> {
@@ -184,8 +190,17 @@ impl PlayerInterface for MprisHandler {
     }
 
     async fn metadata(&self) -> fdo::Result<Metadata> {
-        println!("Metadata");
-        Ok(Metadata::default())
+        let mut metadata = Metadata::builder();
+        if let Some(track) = &self.current_track {
+            if let Some(album_title) = &track.album_title {
+                metadata = metadata.album(album_title);
+            }
+
+            if let Some(title) = &track.title {
+                metadata = metadata.title(title);
+            }
+        };
+        Ok(metadata.build())
     }
 
     async fn volume(&self) -> fdo::Result<Volume> {
@@ -253,7 +268,8 @@ pub struct State {
     library: Option<String>,
     sink_handle: Option<rodio::MixerDeviceSink>,
     player: Option<Player>,
-    mpris: Option<Server<MprisHandler>>,
+    mpris_state: MprisHandler,
+    mpris_server: Option<Server<MprisHandler>>,
 }
 
 fn new() -> State {
@@ -279,12 +295,14 @@ fn new() -> State {
         library: None,
         sink_handle,
         player,
-        mpris: None,
+        mpris_state: MprisHandler::default(),
+        mpris_server: None,
     }
 }
 
 fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
+        Message::None => Task::none(),
         Message::Increment => {
             state.counter += 1;
             Task::none()
@@ -315,18 +333,18 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::PlaySong(track) => {
             let file = std::io::BufReader::new(File::open(&track.filepath).unwrap());
 
-            let mpris_handler = MprisHandler {};
-
             // TODO probably make this global later so to cause any random track to play
-            let mpris = match futures::executor::block_on(Server::new("roomba", mpris_handler)) {
-                Ok(m) => Some(m),
-                Err(e) => {
-                    println!("Failed to create mpris context {}", e);
-                    None
-                }
-            };
+            let mpris =
+                match futures::executor::block_on(Server::new("roomba", state.mpris_state.clone()))
+                {
+                    Ok(m) => Some(m),
+                    Err(e) => {
+                        println!("Failed to create mpris context {}", e);
+                        None
+                    }
+                };
 
-            state.mpris = mpris;
+            state.mpris_server = mpris;
 
             if let Some(player) = &state.player {
                 if !player.empty() {
@@ -346,10 +364,14 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 }
             }
 
-            state.current_track_cover = track
+            let cover = track
                 .cover
                 .as_ref()
                 .map(|c| iced::widget::image::Handle::from_bytes(c.to_vec()));
+
+            state.mpris_state.current_track_cover = cover.clone();
+            state.mpris_state.current_track = Some(track.clone());
+            state.current_track_cover = cover;
             state.current_track = Some(track);
 
             Task::none()
@@ -366,7 +388,8 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             Task::none()
         }
         Message::Stop => {
-            state.mpris = None;
+            // drop Server so Mpris context is gone
+            state.mpris_server = None;
             if let Some(player) = &state.player {
                 player.stop();
 
