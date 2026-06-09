@@ -4,13 +4,13 @@ use std::path::Path;
 
 use crate::{Message, State};
 use audiotags::{Album, AudioTag, MimeType, Tag};
+use iced::Element;
 use iced::alignment::{Horizontal, Vertical};
 use iced::application::IntoBoot;
 use iced::futures::lock::MutexGuard;
 use iced::widget::{
-    button, column, container, image as img, row, scrollable, text, Column, Row, Scrollable,
+    Column, Row, Scrollable, button, column, container, image as img, row, scrollable, text,
 };
-use iced::Element;
 use image::DynamicImage;
 use rodio::Player;
 
@@ -255,7 +255,8 @@ pub fn view(state: &State) -> Element<'static, Message> {
             )
             // this lags the shit out of the app
             .push(container(scrollable(tracks)).width(1000))
-            .align_y(Vertical::Center),
+            .align_y(Vertical::Center)
+            .spacing(10),
     )
     .center_x(iced::Fill)
     .center_y(iced::Fill)
