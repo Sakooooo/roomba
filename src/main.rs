@@ -1,14 +1,8 @@
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::sync::Arc;
 
-use iced::futures::lock::Mutex;
 use iced::widget::{button, container, text};
 use iced::{Element, Task};
-use mpris_server::{
-    Metadata, PlayerInterface, Property, RootInterface, Server, Signal, Time, Volume,
-    zbus::{Result, fdo},
-};
 use rfd::AsyncFileDialog;
 use rodio::{Decoder, Player};
 
@@ -46,57 +40,6 @@ pub struct State {
     library: Option<String>,
     sink_handle: Option<rodio::MixerDeviceSink>,
     player: Option<Player>,
-    mpris: Server<State>,
-}
-
-impl RootInterface for State {
-    async fn identity(&self) -> fdo::Result<String> {
-        Ok("roomba".into())
-    }
-
-    async fn raise(&self) -> fdo::Result<()> {
-        Ok(())
-    }
-
-    async fn quit(&self) -> fdo::Result<()> {
-        Ok(())
-    }
-
-    async fn can_quit(&self) -> fdo::Result<bool> {
-        Ok(false)
-    }
-
-    async fn fullscreen(&self) -> fdo::Result<bool> {
-        Ok(false)
-    }
-
-    async fn can_set_fullscreen(&self) -> fdo::Result<bool> {
-        Ok(false)
-    }
-
-    async fn can_raise(&self) -> fdo::Result<bool> {
-        Ok(false)
-    }
-
-    async fn has_track_list(&self) -> fdo::Result<bool> {
-        Ok(false)
-    }
-
-    async fn desktop_entry(&self) -> fdo::Result<String> {
-        Ok("idk".into())
-    }
-
-    async fn set_fullscreen(&self, fullscreen: bool) -> Result<()> {
-        Ok(())
-    }
-
-    async fn supported_mime_types(&self) -> fdo::Result<Vec<String>> {
-        Ok(vec!["idk".into()])
-    }
-
-    async fn supported_uri_schemes(&self) -> fdo::Result<Vec<String>> {
-        Ok(vec!["idk".into()])
-    }
 }
 
 fn new() -> State {
@@ -113,9 +56,7 @@ fn new() -> State {
         .as_ref()
         .map(|sink| Player::connect_new(sink.mixer()));
 
-    let mpris = futures::executor::block_on(Server::new("roomba", State));
-
-    State {
+    let state = State {
         counter: 0,
         screen: Screen::Blah,
         current_track: None,
@@ -124,7 +65,9 @@ fn new() -> State {
         library: None,
         sink_handle,
         player,
-    }
+    };
+
+    state
 }
 
 fn update(state: &mut State, message: Message) -> Task<Message> {
