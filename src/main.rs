@@ -83,12 +83,12 @@ impl RootInterface for MprisHandler {
 
     async fn identity(&self) -> fdo::Result<String> {
         println!("Identity");
-        Ok("TestApplication".to_string())
+        Ok("roomba".to_string())
     }
 
     async fn desktop_entry(&self) -> fdo::Result<String> {
         println!("DesktopEntry");
-        Ok("Test.Application".to_string())
+        Ok("roomba".to_string())
     }
 
     async fn supported_uri_schemes(&self) -> fdo::Result<Vec<String>> {
