@@ -4,6 +4,7 @@
 - [ ] refactor library scanning
 - [ ] cache scanned library somehow
 - [ ] library scanning progress
+- [ ] cache album/track images too
 
 # actual things
 

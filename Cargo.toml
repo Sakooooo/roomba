@@ -11,9 +11,13 @@ futures = "0.3.32"
 iced = { version = "0.14.0", features = ["image"] }
 image = "0.25.10"
 mpris-server = "0.10.0"
+platform-dirs = "0.3.0"
 rfd = "0.17.2"
 rodio = "0.22.2"
+serde = "1.0.228"
 subsecond = "0.7.9"
+toml = "1.1.2"
+uuid = { version = "1.23.3", features = ["v4"] }
 
 [features]
 debug = ["iced/hot"]

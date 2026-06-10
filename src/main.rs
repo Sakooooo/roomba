@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use crate::views::player::{self, Track};
 
+mod config;
 mod views;
 
 #[derive(Debug, Clone)]
@@ -270,6 +271,8 @@ pub struct State {
     player: Option<Player>,
     mpris_state: MprisHandler,
     mpris_server: Option<Server<MprisHandler>>,
+    app_dirs: platform_dirs::AppDirs,
+    config: config::Config,
 }
 
 fn new() -> State {
@@ -286,6 +289,19 @@ fn new() -> State {
         .as_ref()
         .map(|sink| Player::connect_new(sink.mixer()));
 
+    let app_dirs = platform_dirs::AppDirs::new(Some("roomba"), false).unwrap();
+
+    let config_path =
+        std::path::Path::join(&app_dirs.config_dir, std::path::Path::new("config.toml"));
+
+    let config = match config::read_config(config_path) {
+        Ok(data) => data,
+        Err(_) => {
+            println!("Failed to read config! Using defaults...");
+            config::Config::default()
+        }
+    };
+
     State {
         counter: 0,
         screen: Screen::Blah,
@@ -297,6 +313,8 @@ fn new() -> State {
         player,
         mpris_state: MprisHandler::default(),
         mpris_server: None,
+        app_dirs,
+        config,
     }
 }
 
