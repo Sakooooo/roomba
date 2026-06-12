@@ -1,8 +1,6 @@
 use platform_dirs::AppDirs;
 use serde::{Deserialize, Serialize};
 
-use crate::State;
-
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Library {
     path: String,
@@ -84,7 +82,7 @@ pub fn save_library(state: &mut crate::State, path: String, dirs: &AppDirs) {
 
     state.config = config.clone();
 
-    if save_config(&state.config, dirs.config_dir).is_err() {
+    if save_config(&state.config, dirs.config_dir.clone()).is_err() {
         println!("Failed to save configuration, library will only say in memory for this run");
     };
 }

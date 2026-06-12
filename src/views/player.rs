@@ -3,25 +3,31 @@ use std::fs::DirEntry;
 use std::path::Path;
 
 use crate::{Message, State};
-use audiotags::{Album, AudioTag, MimeType, Tag};
+use audiotags::Tag;
 use iced::Element;
 use iced::alignment::{Horizontal, Vertical};
-use iced::application::IntoBoot;
-use iced::futures::lock::MutexGuard;
-use iced::widget::{
-    Column, Row, Scrollable, button, column, container, image as img, row, scrollable, text,
-};
-use image::DynamicImage;
-use rodio::Player;
+use iced::widget::{Column, Row, button, column, container, image as img, row, scrollable, text};
 
-const MISSING_COVER_BYTES: &'static [u8] = include_bytes!("./missing.png");
+const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
 pub struct CurrentTrack {
     pub track: Track, // state
 }
 
+#[derive(Debug, Clone)]
 pub enum PlayerError {
     LibraryNotFound,
     IoError,
+    LibraryPickerCanceled,
+}
+
+impl std::fmt::Display for PlayerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PlayerError::IoError => write!(f, "Failed to read library path"),
+            PlayerError::LibraryNotFound => write!(f, "Could not find library"),
+            PlayerError::LibraryPickerCanceled => write!(f, "Library dialog menu was closed"),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -199,7 +205,7 @@ pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, 
     return Ok(map);
 }
 
-pub fn update(state: &mut State, message: Message) {}
+// pub fn update(state: &mut State, message: Message) {}
 
 pub fn view(state: &State) -> Element<'static, Message> {
     let album_cover = if let Some(cover) = &state.current_track_cover {

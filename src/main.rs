@@ -1,20 +1,17 @@
 use std::collections::BTreeMap;
 use std::fs::File;
 
-use futures::TryFutureExt;
-use iced::wgpu::wgc::command::Command;
 use iced::widget::{button, container, text};
 use iced::{Element, Task};
+use mpris_server::zbus::fdo;
 use mpris_server::{
-    LocalPlaylistsInterface, LocalTrackListInterface, LoopStatus, Metadata, PlaybackRate,
-    PlaybackStatus, PlayerInterface, Property, RootInterface, Server, Time, TrackId, Uri, Volume,
+    LoopStatus, Metadata, PlaybackRate, PlaybackStatus, PlayerInterface, RootInterface, Server,
+    Time, TrackId, Volume,
 };
-use mpris_server::{LocalRootInterface, zbus::fdo};
 use rfd::AsyncFileDialog;
 use rodio::{Decoder, Player};
-use std::sync::Arc;
 
-use crate::views::player::{self, Track};
+use crate::views::player::{self, PlayerError, Track};
 
 mod config;
 mod views;
@@ -27,7 +24,7 @@ pub enum Message {
     PickLibrary,
     ScanLibrary(String),
     LibraryScanned(BTreeMap<String, Vec<Track>>),
-    ScanFail,
+    ScanFail(PlayerError),
     PlaySong(Track),
     PreviousTrack,
     PlayPause,
@@ -331,21 +328,21 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         }
         Message::PickLibrary => Task::perform(AsyncFileDialog::new().pick_folder(), |x| match x {
             Some(x) => Message::ScanLibrary(x.path().to_string_lossy().to_string()),
-            None => Message::ScanFail,
+            None => Message::ScanFail(PlayerError::LibraryPickerCanceled),
         }),
         Message::ScanLibrary(path) => {
             // Task::none()
             Task::perform(player::scan_library(path), |x| match x {
                 Ok(result) => Message::LibraryScanned(result),
-                Err(e) => Message::ScanFail,
+                Err(e) => Message::ScanFail(e),
             })
         }
         Message::LibraryScanned(tracks) => {
             state.tracks = tracks;
             Task::none()
         }
-        Message::ScanFail => {
-            println!("Fail!");
+        Message::ScanFail(e) => {
+            println!("Failed to scan library: {}", e);
             Task::none()
         }
         Message::PlaySong(track) => {
