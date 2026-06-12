@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use platform_dirs::AppDirs;
 use serde::{Deserialize, Serialize};
 
@@ -48,9 +50,18 @@ pub fn save_config(config: &Config, path: std::path::PathBuf) -> Result<(), Conf
         }
     };
 
-    match std::fs::write(path, config_text) {
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        match std::fs::create_dir_all(parent) {
+            Ok(_) => println!("Config directory created"),
+            Err(e) => println!("Failed to create config directory: {}", e),
+        };
+    };
+
+    match std::fs::write(&path, config_text) {
         Ok(_) => {
-            println!("Config saved successfully!");
+            println!("Config saved at {} successfully!", path.to_string_lossy());
             Ok(())
         }
         Err(e) => {
@@ -60,7 +71,7 @@ pub fn save_config(config: &Config, path: std::path::PathBuf) -> Result<(), Conf
     }
 }
 
-pub fn save_library(state: &mut crate::State, path: String, dirs: &AppDirs) {
+pub fn save_library(state: &mut crate::State, path: String, dirs: AppDirs) {
     let config = &mut state.config;
 
     let mut libraries: Vec<Library> = if let Some(libraries) = &config.libraries {
@@ -82,7 +93,9 @@ pub fn save_library(state: &mut crate::State, path: String, dirs: &AppDirs) {
 
     state.config = config.clone();
 
-    if save_config(&state.config, dirs.config_dir.clone()).is_err() {
+    let config_path = Path::join(&dirs.config_dir, "config.toml");
+
+    if save_config(&state.config, config_path).is_err() {
         println!("Failed to save configuration, library will only say in memory for this run");
     };
 }

@@ -11,6 +11,7 @@ use mpris_server::{
 use rfd::AsyncFileDialog;
 use rodio::{Decoder, Player};
 
+use crate::config::save_library;
 use crate::views::player::{self, PlayerError, Track};
 
 mod config;
@@ -23,7 +24,7 @@ pub enum Message {
     SwitchScreen(Screen),
     PickLibrary,
     ScanLibrary(String),
-    LibraryScanned(BTreeMap<String, Vec<Track>>),
+    LibraryScanned(String, BTreeMap<String, Vec<Track>>),
     ScanFail(PlayerError),
     PlaySong(Track),
     PreviousTrack,
@@ -301,7 +302,7 @@ fn new() -> State {
 
     State {
         counter: 0,
-        screen: Screen::Blah,
+        screen: Screen::Player,
         current_track: None,
         current_track_cover: None,
         tracks: BTreeMap::new(),
@@ -332,12 +333,13 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         }),
         Message::ScanLibrary(path) => {
             // Task::none()
-            Task::perform(player::scan_library(path), |x| match x {
-                Ok(result) => Message::LibraryScanned(result),
+            Task::perform(player::scan_library(path.clone()), |x| match x {
+                Ok(result) => Message::LibraryScanned(path, result),
                 Err(e) => Message::ScanFail(e),
             })
         }
-        Message::LibraryScanned(tracks) => {
+        Message::LibraryScanned(path, tracks) => {
+            save_library(state, path, state.app_dirs.clone());
             state.tracks = tracks;
             Task::none()
         }
