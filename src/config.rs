@@ -5,13 +5,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Library {
-    path: String,
-    cache_id: String,
+    pub path: String,
+    pub cache_id: String,
 }
 
 #[derive(Default, Deserialize, Serialize, Clone)]
 pub struct Config {
-    libraries: Option<Vec<Library>>,
+    pub libraries: Option<Vec<Library>>,
 }
 
 pub enum ConfigError {

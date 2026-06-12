@@ -12,7 +12,7 @@ use rfd::AsyncFileDialog;
 use rodio::{Decoder, Player};
 
 use crate::config::save_library;
-use crate::views::player::{self, PlayerError, Track};
+use crate::views::player::{self, PlayerError, Track, scan_library};
 
 mod config;
 mod views;
@@ -264,7 +264,6 @@ pub struct State {
     current_track: Option<Track>,
     current_track_cover: Option<iced::widget::image::Handle>,
     tracks: BTreeMap<String, Vec<Track>>,
-    library: Option<String>,
     sink_handle: Option<rodio::MixerDeviceSink>,
     player: Option<Player>,
     mpris_state: MprisHandler,
@@ -300,13 +299,29 @@ fn new() -> State {
         }
     };
 
+    let tracks: BTreeMap<String, Vec<Track>> = if let Some(ref libraries) = config.libraries {
+        let mut result: BTreeMap<String, Vec<Track>> = BTreeMap::new();
+        for library in libraries {
+            let path = &library.path;
+            match futures::executor::block_on(scan_library(path.to_string())) {
+                Ok(mut res) => result.append(&mut res),
+                Err(e) => {
+                    println!("{}, {}", e, path);
+                }
+            };
+        }
+
+        result
+    } else {
+        BTreeMap::new()
+    };
+
     State {
         counter: 0,
         screen: Screen::Player,
         current_track: None,
         current_track_cover: None,
-        tracks: BTreeMap::new(),
-        library: None,
+        tracks,
         sink_handle,
         player,
         mpris_state: MprisHandler::default(),

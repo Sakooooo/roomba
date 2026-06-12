@@ -202,7 +202,7 @@ pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, 
         tracks.sort_by_key(|track| track.track_number.unwrap_or(67));
     }
 
-    return Ok(map);
+    Ok(map)
 }
 
 // pub fn update(state: &mut State, message: Message) {}
