@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 use std::fs::DirEntry;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{Message, State};
 use audiotags::Tag;
-use iced::Element;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{Column, Row, button, column, container, image as img, row, scrollable, text};
+use iced::Element;
 
 const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
 pub struct CurrentTrack {
@@ -80,110 +80,37 @@ pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, 
 
     let mut tracks: Vec<Track> = vec![];
 
-    match library_path.read_dir() {
-        Ok(files) => {
-            for file in files {
-                match file {
-                    Ok(entry) => {
-                        let mut collected_folders: Vec<DirEntry> = Vec::new();
-                        match entry.file_type() {
-                            Ok(info) => {
-                                if info.is_dir() {
-                                    let to_search = entry.path().read_dir();
-                                    match to_search {
-                                        Ok(dirs) => {
-                                            for file in dirs {
-                                                match file {
-                                                    Ok(entry) => {
-                                                        match entry.file_type() {
-                                                            Ok(filetype) => {
-                                                                if filetype.is_dir() {
-                                                                    collected_folders.push(entry);
-                                                                };
-                                                            }
-                                                            Err(e) => {
-                                                                println!("Fail {}", e);
-                                                                return Err(PlayerError::IoError);
-                                                            }
-                                                        };
-                                                    }
-                                                    Err(e) => {
-                                                        println!("Fail {}", e);
-                                                        return Err(PlayerError::IoError);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Err(err) => {
-                                            println!("Fail {}", err);
-                                            return Err(PlayerError::IoError);
-                                        }
-                                    }
-                                }
-                            }
-                            Err(err) => {
-                                println!("Fail {}", err);
-                                return Err(PlayerError::IoError);
-                            }
-                        };
+    let mut queued_dirs: Vec<PathBuf> = vec![library_path.to_path_buf()];
 
-                        for dir in collected_folders {
-                            match dir.path().read_dir() {
-                                Ok(collected_folder) => {
-                                    for file in collected_folder {
-                                        match file {
-                                            Ok(result) => {
-                                                let item_path =
-                                                    result.path().to_string_lossy().to_string();
-                                                match Track::new(item_path.clone()) {
-                                                    Ok(track) => {
-                                                        tracks.push(track);
-                                                    }
-                                                    Err(
-                                                        audiotags::error::Error::UnsupportedFormat(
-                                                            e,
-                                                        ),
-                                                    ) => {
-                                                        println!(
-                                                            "File {} has unsupported format {}, skipping...",
-                                                            item_path, e
-                                                        );
-                                                    }
-                                                    Err(e) => {
-                                                        dbg!(&e);
-                                                        println!(
-                                                            "Error while importing {}: {}",
-                                                            item_path, e
-                                                        );
-                                                        return Err(PlayerError::IoError);
-                                                    }
-                                                };
-                                            }
-                                            Err(err) => {
-                                                println!("Fail {}", err);
-                                                return Err(PlayerError::IoError);
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    println!("Fail {}", err);
-                                    return Err(PlayerError::IoError);
-                                }
+    while let Some(path) = queued_dirs.pop() {
+        match path.read_dir() {
+            Ok(files) => {
+                for file in files {
+                    match file {
+                        Ok(res) => {
+                            let path = res.path();
+                            if let Ok(filetype) = res.file_type() && filetype.is_dir() {
+                                queued_dirs.push(path);
+                            } else {
+                                if let Ok(track) =  Track::new(res.path().to_string_lossy().to_string()) {
+                                    tracks.push(track)
+                                } else {
+                                    println!("Skipping {}", path.to_string_lossy().to_string());
+                                };
                             };
                         }
-                    }
-                    Err(e) => {
-                        println!("Error! {}", e);
-                        return Err(PlayerError::IoError);
+                        Err(e) => {
+                            println!("Failed to read file {}", e);
+                            return Err(PlayerError::IoError);
+                        }
                     }
                 }
             }
-        }
-        Err(e) => {
-            println!("Error! {}", e);
-            return Err(PlayerError::IoError);
-        }
+            Err(e) => {
+                println!("Failed to open library path: {}", e);
+                return Err(PlayerError::IoError);
+            }
+        };
     }
 
     let mut map: BTreeMap<String, Vec<Track>> = BTreeMap::new();
