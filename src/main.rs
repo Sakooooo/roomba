@@ -12,7 +12,7 @@ use rfd::AsyncFileDialog;
 use rodio::{Decoder, Player};
 
 use crate::config::save_library;
-use crate::views::player::{self, PlayerError, Track, scan_library};
+use crate::views::player::{self, scan_library, PlayerError, Track};
 
 mod config;
 mod views;
@@ -304,7 +304,11 @@ fn new() -> State {
         for library in libraries {
             let path = &library.path;
             match futures::executor::block_on(scan_library(path.to_string())) {
-                Ok(mut res) => result.append(&mut res),
+                Ok(res) => {
+                    for (album, mut tracks) in res {
+                        result.entry(album).or_default().append(&mut tracks);
+                    }
+                }
                 Err(e) => {
                     println!("{}, {}", e, path);
                 }

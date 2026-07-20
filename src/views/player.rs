@@ -167,8 +167,9 @@ pub fn view(state: &State) -> Element<'static, Message> {
             .fold(Column::new(), |col, (album, tracks)| {
                 let album_column: Column<Message> =
                     tracks.into_iter().fold(Column::new(), |col, track| {
+                        let label = track.title.clone().unwrap_or_else(|| track.filepath.clone());
                         col.push(
-                            button(text(track.title.clone().unwrap()))
+                            button(text(label))
                                 .on_press(Message::PlaySong(track))
                                 .width(iced::Fill),
                         )
