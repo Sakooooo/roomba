@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::{Message, State};
 use audiotags::Tag;
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{Column, Row, button, column, container, image as img, row, scrollable, text};
+use iced::widget::{Column, Row, button, column, container, image as img, row, scrollable, text, lazy};
 use iced::Element;
 
 const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
@@ -132,9 +132,23 @@ pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, 
     Ok(map)
 }
 
+fn track_list(tracks: &BTreeMap<String, Vec<Track>>) -> Element<'static, Message> {
+    let mut col = Column::new();
+    for (album, list) in tracks {
+        col = col.push(container(text(album.clone())).height(25));
+        for (i, track) in list.iter().enumerate() {
+            let label = track.title.clone().unwrap_or_else(|| "Unknown".to_string());
+            col = col.push(button(text(label))
+                .on_press(Message::PlaySong(album.clone(), i))
+                .width(iced::Fill));
+        }
+    }
+    col.into()
+}
+
 // pub fn update(state: &mut State, message: Message) {}
 
-pub fn view(state: &State) -> Element<'static, Message> {
+pub fn view(state: &State) -> Element<'_, Message> {
     let album_cover = if let Some(cover) = &state.current_track_cover {
         container(img(cover).expand(true))
             .width(512)
@@ -159,25 +173,7 @@ pub fn view(state: &State) -> Element<'static, Message> {
         .align_x(Horizontal::Center),
     );
 
-    let tracks: Column<Message> =
-        state
-            .tracks
-            .clone()
-            .into_iter()
-            .fold(Column::new(), |col, (album, tracks)| {
-                let album_column: Column<Message> =
-                    tracks.into_iter().fold(Column::new(), |col, track| {
-                        let label = track.title.clone().unwrap_or_else(|| track.filepath.clone());
-                        col.push(
-                            button(text(label))
-                                .on_press(Message::PlaySong(track))
-                                .width(iced::Fill),
-                        )
-                    });
-
-                col.push(container(text(album)).center_y(iced::Fill).height(25))
-                    .push(album_column)
-            });
+    let tracks = lazy(state.track_rev, |_| track_list(&state.tracks));
 
     container(
         Row::new()

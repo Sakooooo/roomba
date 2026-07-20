@@ -26,7 +26,7 @@ pub enum Message {
     ScanLibrary(String),
     LibraryScanned(String, BTreeMap<String, Vec<Track>>),
     ScanFail(PlayerError),
-    PlaySong(Track),
+    PlaySong(String, usize),
     PreviousTrack,
     PlayPause,
     Stop,
@@ -264,6 +264,7 @@ pub struct State {
     current_track: Option<Track>,
     current_track_cover: Option<iced::widget::image::Handle>,
     tracks: BTreeMap<String, Vec<Track>>,
+    track_rev: u64,
     sink_handle: Option<rodio::MixerDeviceSink>,
     player: Option<Player>,
     mpris_state: MprisHandler,
@@ -326,6 +327,7 @@ fn new() -> State {
         current_track: None,
         current_track_cover: None,
         tracks,
+        track_rev: 0,
         sink_handle,
         player,
         mpris_state: MprisHandler::default(),
@@ -360,13 +362,18 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::LibraryScanned(path, tracks) => {
             save_library(state, path, state.app_dirs.clone());
             state.tracks = tracks;
+            state.track_rev += 1;
             Task::none()
         }
         Message::ScanFail(e) => {
             println!("Failed to scan library: {}", e);
             Task::none()
         }
-        Message::PlaySong(track) => {
+        Message::PlaySong(album, i) => {
+            let Some(track) = state.tracks.get(&album).and_then(|v| v.get(i)).cloned() else {
+                return Task::none();
+            };
+
             let file = std::io::BufReader::new(File::open(&track.filepath).unwrap());
 
             // TODO probably make this global later so to cause any random track to play
