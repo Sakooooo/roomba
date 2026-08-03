@@ -4,11 +4,13 @@ use std::path::{Path, PathBuf};
 
 use crate::{Message, State};
 use audiotags::Tag;
-use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{Column, Row, button, column, container, image as img, row, scrollable, text, lazy};
 use iced::Element;
+use iced::alignment::{Horizontal, Vertical};
+use iced::widget::{
+    Column, Row, button, column, container, image as img, lazy, row, scrollable, text,
+};
 
-use rkyv::{deserialize, rancor::Error, Archive, Deserialize, Serialize};
+use rkyv::{Archive, Deserialize, Serialize, deserialize, rancor::Error};
 
 const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
 pub struct CurrentTrack {
@@ -33,17 +35,13 @@ impl std::fmt::Display for PlayerError {
 }
 
 #[derive(Debug, Default, Clone, Archive, Deserialize, Serialize, PartialEq)]
-#[rkyv(
-    compare(PartialEq),
-    derive(Debug)
-)]
+#[rkyv(compare(PartialEq), derive(Debug))]
 pub struct Track {
     pub track_number: Option<u16>,
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album_artist: Option<String>,
     pub album_title: Option<String>,
-    pub cover: Option<Vec<u8>>,
     pub filepath: String,
 }
 
@@ -65,15 +63,23 @@ impl Track {
 
         if let Some(album_metadata) = metadata.album() {
             result.album_title = Some(album_metadata.title.to_string());
-            if let Some(cover) = album_metadata.cover {
-                // surely theres a better way
-                result.cover = Some(cover.data.to_vec());
-            }
         };
 
         result.filepath = path;
 
         Ok(result)
+    }
+
+    pub fn get_album_cover(&self) -> Result<Vec<u8>, audiotags::error::Error> {
+        let metadata = Tag::new().read_from_path(&self.filepath)?;
+
+        if let Some(album_metadata) = metadata.album()
+            && let Some(cover) = album_metadata.cover
+        {
+            Ok(cover.data.to_vec())
+        } else {
+            Ok(MISSING_COVER_BYTES.to_owned())
+        }
     }
 }
 
@@ -95,10 +101,14 @@ pub async fn scan_library(path: String) -> Result<BTreeMap<String, Vec<Track>>, 
                     match file {
                         Ok(res) => {
                             let path = res.path();
-                            if let Ok(filetype) = res.file_type() && filetype.is_dir() {
+                            if let Ok(filetype) = res.file_type()
+                                && filetype.is_dir()
+                            {
                                 queued_dirs.push(path);
                             } else {
-                                if let Ok(track) =  Track::new(res.path().to_string_lossy().to_string()) {
+                                if let Ok(track) =
+                                    Track::new(res.path().to_string_lossy().to_string())
+                                {
                                     tracks.push(track)
                                 } else {
                                     println!("Skipping {}", path.to_string_lossy().to_string());
@@ -144,9 +154,11 @@ fn track_list(tracks: &BTreeMap<String, Vec<Track>>) -> Element<'static, Message
         col = col.push(container(text(album.clone())).height(25));
         for (i, track) in list.iter().enumerate() {
             let label = track.title.clone().unwrap_or_else(|| "Unknown".to_string());
-            col = col.push(button(text(label))
-                .on_press(Message::PlaySong(album.clone(), i))
-                .width(iced::Fill));
+            col = col.push(
+                button(text(label))
+                    .on_press(Message::PlaySong(album.clone(), i))
+                    .width(iced::Fill),
+            );
         }
     }
     col.into()

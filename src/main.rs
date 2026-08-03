@@ -12,7 +12,7 @@ use rfd::AsyncFileDialog;
 use rodio::{Decoder, Player};
 
 use crate::config::save_library;
-use crate::views::player::{self, scan_library, PlayerError, Track};
+use crate::views::player::{self, PlayerError, Track, scan_library};
 
 mod config;
 mod views;
@@ -442,14 +442,19 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 }
             }
 
-            let cover = track
-                .cover
-                .as_ref()
-                .map(|c| iced::widget::image::Handle::from_bytes(c.to_vec()));
+            // let cover = track
+            //     .cover
+            //     .as_ref()
+            //     .map(|c| iced::widget::image::Handle::from_bytes(c.to_vec()));
+            //
 
-            state.mpris_state.current_track_cover = cover.clone();
+            if let Ok(cover) = track.get_album_cover() {
+                let cover_image = iced::widget::image::Handle::from_bytes(cover);
+                state.current_track_cover = Some(cover_image.clone());
+                state.mpris_state.current_track_cover = Some(cover_image.clone());
+            }
+
             state.mpris_state.current_track = Some(track.clone());
-            state.current_track_cover = cover;
             state.current_track = Some(track);
 
             Task::none()
