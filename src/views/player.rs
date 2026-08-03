@@ -8,6 +8,8 @@ use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{Column, Row, button, column, container, image as img, row, scrollable, text, lazy};
 use iced::Element;
 
+use rkyv::{deserialize, rancor::Error, Archive, Deserialize, Serialize};
+
 const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
 pub struct CurrentTrack {
     pub track: Track, // state
@@ -30,7 +32,11 @@ impl std::fmt::Display for PlayerError {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Archive, Deserialize, Serialize, PartialEq)]
+#[rkyv(
+    compare(PartialEq),
+    derive(Debug)
+)]
 pub struct Track {
     pub track_number: Option<u16>,
     pub title: Option<String>,

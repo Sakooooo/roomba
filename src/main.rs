@@ -303,17 +303,52 @@ fn new() -> State {
     let tracks: BTreeMap<String, Vec<Track>> = if let Some(ref libraries) = config.libraries {
         let mut result: BTreeMap<String, Vec<Track>> = BTreeMap::new();
         for library in libraries {
-            let path = &library.path;
-            match futures::executor::block_on(scan_library(path.to_string())) {
-                Ok(res) => {
-                    for (album, mut tracks) in res {
-                        result.entry(album).or_default().append(&mut tracks);
+            if !app_dirs.cache_dir.exists() {
+                if let Err(e) = std::fs::create_dir(&app_dirs.cache_dir) {
+                    println!("Failed to create cache directory {}", e);
+                };
+            }
+            let cache_file =
+                std::path::Path::join(&app_dirs.cache_dir, std::path::Path::new(&library.cache_id));
+            dbg!(&cache_file);
+            if cache_file.exists() {
+                let cache_data = std::fs::read(cache_file);
+
+                if let Ok(data) = cache_data {
+                    result = match rkyv::from_bytes::<
+                        BTreeMap<String, Vec<Track>>,
+                        rkyv::rancor::Error,
+                    >(&data)
+                    {
+                        Ok(res) => res,
+                        Err(e) => {
+                            println!("Failed to load cache {}", e);
+                            BTreeMap::new()
+                        }
+                    };
+                }
+            } else {
+                let path = &library.path;
+                let tracks = match futures::executor::block_on(scan_library(path.to_string())) {
+                    Ok(res) => {
+                        for (album, mut tracks) in res {
+                            result.entry(album).or_default().append(&mut tracks);
+                        }
                     }
-                }
-                Err(e) => {
-                    println!("{}, {}", e, path);
-                }
-            };
+                    Err(e) => {
+                        println!("{}, {}", e, path);
+                    }
+                };
+
+                let cache = rkyv::to_bytes::<rkyv::rancor::Error>(&result);
+
+                if let Ok(cache) = cache {
+                    match std::fs::write(&cache_file, cache) {
+                        Ok(_) => println!("Saved cache successfully."),
+                        Err(e) => println!("Failed to save cache {}", e),
+                    };
+                };
+            }
         }
 
         result
