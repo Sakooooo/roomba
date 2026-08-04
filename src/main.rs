@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::fs::File;
+use std::sync::Arc;
 
 use iced::widget::{button, container, text};
 use iced::{Element, Task};
+use iced::task::{Sipper, sipper};
 use mpris_server::zbus::fdo;
 use mpris_server::{
     LoopStatus, Metadata, PlaybackRate, PlaybackStatus, PlayerInterface, RootInterface, Server,
@@ -10,9 +12,10 @@ use mpris_server::{
 };
 use rfd::AsyncFileDialog;
 use rodio::{Decoder, Player};
+use tokio::sync::mpsc;
 
 use crate::config::save_library;
-use crate::views::player::{self, PlayerError, Track, scan_library};
+use crate::views::player::{self, scan_library, PlayerError, Track};
 
 mod config;
 mod views;
@@ -27,6 +30,7 @@ pub enum Message {
     LibraryScanned(String, BTreeMap<String, Vec<Track>>),
     ScanFail(PlayerError),
     PlaySong(String, usize),
+    PlayProgress(f32),
     PreviousTrack,
     PlayPause,
     Stop,
@@ -43,6 +47,7 @@ pub enum Screen {
 pub struct MprisHandler {
     current_track: Option<Track>,
     current_track_cover: Option<iced::widget::image::Handle>,
+    sender: Option<mpsc::UnboundedSender<Message>>
 }
 
 impl RootInterface for MprisHandler {
@@ -266,7 +271,9 @@ pub struct State {
     tracks: BTreeMap<String, Vec<Track>>,
     track_rev: u64,
     sink_handle: Option<rodio::MixerDeviceSink>,
-    player: Option<Player>,
+    player: Option<Arc<Player>>,
+    track_progress: f32,
+    track_progress_task: Option<iced::task::Handle>,
     mpris_state: MprisHandler,
     mpris_server: Option<Server<MprisHandler>>,
     app_dirs: platform_dirs::AppDirs,
@@ -285,7 +292,7 @@ fn new() -> State {
 
     let player = sink_handle
         .as_ref()
-        .map(|sink| Player::connect_new(sink.mixer()));
+        .map(|sink| Arc::new(Player::connect_new(sink.mixer())));
 
     let app_dirs = platform_dirs::AppDirs::new(Some("roomba"), false).unwrap();
 
@@ -365,6 +372,8 @@ fn new() -> State {
         track_rev: 0,
         sink_handle,
         player,
+        track_progress: 0 as f32,
+        track_progress_task: None,
         mpris_state: MprisHandler::default(),
         mpris_server: None,
         app_dirs,
@@ -373,6 +382,9 @@ fn new() -> State {
 }
 
 fn update(state: &mut State, message: Message) -> Task<Message> {
+    if state.current_track.is_some() && let Some(player) = &state.player {
+        state.track_progress = player.get_pos().as_secs_f64() as f32;
+    }
     match message {
         Message::None => Task::none(),
         Message::Increment => {
@@ -405,6 +417,8 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             Task::none()
         }
         Message::PlaySong(album, i) => {
+            state.track_progress = 0 as f32;
+
             let Some(track) = state.tracks.get(&album).and_then(|v| v.get(i)).cloned() else {
                 return Task::none();
             };
@@ -424,6 +438,15 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
 
             state.mpris_server = mpris;
 
+                        if let Ok(cover) = track.get_album_cover() {
+                let cover_image = iced::widget::image::Handle::from_bytes(cover);
+                state.current_track_cover = Some(cover_image.clone());
+                state.mpris_state.current_track_cover = Some(cover_image.clone());
+            }
+
+            state.mpris_state.current_track = Some(track.clone());
+            state.current_track = Some(track);
+
             if let Some(player) = &state.player {
                 if !player.empty() {
                     player.stop();
@@ -440,25 +463,36 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 if player.is_paused() {
                     player.play();
                 }
+
+                let player = Arc::clone(player);
+                let (task, handle) = Task::sip(
+                    sipper(move | mut progress | async move {
+                        while !player.empty() {
+                            progress.send(player.get_pos().as_secs_f32()).await;
+                            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+                        }
+                    }),
+                    Message::PlayProgress,
+                    // todo track end
+                    |_| Message::None,
+                ).abortable();
+
+                if let Some(old) = state.track_progress_task.replace(handle) {
+                    old.abort();
+                };
+
+                return task;
+            } else {
+                Task::none()
             }
-
-            // let cover = track
-            //     .cover
-            //     .as_ref()
-            //     .map(|c| iced::widget::image::Handle::from_bytes(c.to_vec()));
-            //
-
-            if let Ok(cover) = track.get_album_cover() {
-                let cover_image = iced::widget::image::Handle::from_bytes(cover);
-                state.current_track_cover = Some(cover_image.clone());
-                state.mpris_state.current_track_cover = Some(cover_image.clone());
+        },
+        Message::PlayProgress(pos) => {
+            if let Some(track) = &state.current_track && let Some(duration) = track.duration {
+                state.track_progress = pos / duration;
             }
-
-            state.mpris_state.current_track = Some(track.clone());
-            state.current_track = Some(track);
-
+            dbg!(&state.track_progress);
             Task::none()
-        }
+        },
         Message::PreviousTrack => Task::none(),
         Message::PlayPause => {
             if let Some(player) = &state.player {
@@ -477,8 +511,15 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 player.stop();
 
                 state.current_track = None;
+                state.track_progress = 0 as f32;
                 state.current_track_cover = None;
             }
+
+            if let Some(handle) = state.track_progress_task.take() {
+                handle.abort();
+            }
+
+            state.track_progress = 0 as f32;
 
             Task::none()
         }

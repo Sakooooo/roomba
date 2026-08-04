@@ -7,7 +7,7 @@ use audiotags::Tag;
 use iced::Element;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{
-    Column, Row, button, column, container, image as img, lazy, row, scrollable, text,
+    Column, Row, button, column, container, image as img, lazy, progress_bar, row, scrollable, text
 };
 
 use rkyv::{Archive, Deserialize, Serialize, deserialize, rancor::Error};
@@ -42,6 +42,7 @@ pub struct Track {
     pub artist: Option<String>,
     pub album_artist: Option<String>,
     pub album_title: Option<String>,
+    pub duration: Option<f32>,
     pub filepath: String,
 }
 
@@ -64,6 +65,10 @@ impl Track {
         if let Some(album_metadata) = metadata.album() {
             result.album_title = Some(album_metadata.title.to_string());
         };
+
+        if let Some(duration) = metadata.duration() {
+            result.duration = Some(duration as f32);
+        }
 
         result.filepath = path;
 
@@ -181,6 +186,13 @@ pub fn view(state: &State) -> Element<'_, Message> {
     let current_track = container(
         column![
             album_cover,
+            {
+                if let Some(player) = &state.player {
+                    container(progress_bar(0.0..=1.0, state.track_progress))
+                } else {
+                    container("")
+                }
+            },
             container(row![
                 button("previous"),
                 button("play/pause").on_press(Message::PlayPause),
