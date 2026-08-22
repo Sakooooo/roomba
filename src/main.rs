@@ -1,8 +1,17 @@
 use iced::widget::{button, column, stack, text};
 use iced::{Element, Task};
+use platform_dirs::AppDirs;
 use rfd::AsyncFileDialog;
 
-struct App {}
+use crate::config::Config;
+
+mod config;
+mod track;
+
+struct App {
+    app_dirs: Option<AppDirs>,
+    config: Config,
+}
 
 #[derive(Clone)]
 enum Message {
@@ -12,7 +21,9 @@ enum Message {
 
 impl App {
     fn new() -> Self {
-        App {}
+        let app_dirs = AppDirs::new(Some("roomba"), true);
+        let config = Config::read_from_file_or_new(app_dirs.clone());
+        App { app_dirs, config }
     }
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
