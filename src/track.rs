@@ -6,6 +6,7 @@ pub struct Track {
     name: String,
     artist: String,
     album: String,
+    path: String,
 }
 
 impl Track {
@@ -32,10 +33,13 @@ impl Track {
             album = String::from("Unknown album");
         }
 
+        let path = path.to_string();
+
         let track = Track {
             name,
             artist,
             album,
+            path,
         };
 
         Ok(track)
