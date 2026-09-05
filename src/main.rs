@@ -16,7 +16,8 @@ struct App {
 #[derive(Clone)]
 enum Message {
     PickFolder,
-    ScanLibrary(Option<rfd::FileHandle>),
+    LibraryPicked(Option<rfd::FileHandle>),
+    ScanLibrary(std::path::PathBuf),
 }
 
 impl App {
@@ -36,9 +37,9 @@ impl App {
                             .to_string(),
                     )
                     .pick_folder(),
-                Message::ScanLibrary,
+                Message::LibraryPicked,
             ),
-            Message::ScanLibrary(file_handle) => {
+            Message::LibraryPicked(file_handle) => {
                 if let Some(handle) = file_handle {
                     dbg!(handle.path());
                     Task::none()
@@ -47,11 +48,18 @@ impl App {
                     Task::none()
                 }
             }
+            Message::ScanLibrary(path) => {
+                dbg!(path);
+                Task::none()
+            }
         }
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let content = column![button(text("Pick Library")).on_press(Message::PickFolder)];
+        let content = column![
+            button(text("Pick Library")).on_press(Message::PickFolder),
+            button(text("I have to use this button because for some reason, my xdg portal is broken and I don't know why!")).on_press(Message::ScanLibrary(std::path::Path::new("~/Music").into()))
+        ];
 
         stack![content].into()
     }
