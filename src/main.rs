@@ -1,9 +1,9 @@
+use crate::config::Config;
+use crate::library::Library;
 use iced::widget::{button, column, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
 use rfd::AsyncFileDialog;
-
-use crate::config::Config;
 
 mod config;
 mod track;
@@ -12,6 +12,8 @@ struct App {
     app_dirs: Option<AppDirs>,
     config: Config,
 }
+
+mod library;
 
 #[derive(Clone)]
 enum Message {
@@ -49,7 +51,8 @@ impl App {
                 }
             }
             Message::ScanLibrary(path) => {
-                dbg!(path);
+                dbg!(&path);
+                let library = Library::new_from_path(path);
                 Task::none()
             }
         }
@@ -58,7 +61,7 @@ impl App {
     fn view(&self) -> Element<'_, Message> {
         let content = column![
             button(text("Pick Library")).on_press(Message::PickFolder),
-            button(text("I have to use this button because for some reason, my xdg portal is broken and I don't know why!")).on_press(Message::ScanLibrary(std::path::Path::new("~/Music").into()))
+            button(text("I have to use this button because for some reason, my xdg portal is broken and I don't know why!")).on_press(Message::ScanLibrary(std::path::Path::new("/home/user/Music").into()))
         ];
 
         stack![content].into()
