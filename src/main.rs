@@ -85,8 +85,8 @@ impl App {
             ),
             Message::LibraryPicked(file_handle) => {
                 if let Some(handle) = file_handle {
-                    dbg!(handle.path());
-                    Task::none()
+                    dbg!(&handle.path());
+                    Task::done(Message::ScanLibrary(handle.path().to_path_buf()))
                 } else {
                     println!("Hi");
                     Task::none()

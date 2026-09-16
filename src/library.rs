@@ -4,7 +4,8 @@ use std::{
 };
 
 // what do you mean audiotags doesn't have support for opus lmfao
-use multitag::{data::Album, Tag};
+// use multitag::{Tag, data::Album};
+use audiotags::{Album, Tag};
 
 #[derive(Debug)]
 pub struct Track {
@@ -17,7 +18,8 @@ pub struct Track {
 
 impl Track {
     pub fn new_from_path(path: PathBuf) -> Result<Self, ()> {
-        let metadata = Tag::read_from_path(&path);
+        let metadata = Tag::new().read_from_path(&path);
+        // let metadata = Tag::read_from_path(&path);
         if let Ok(metadata) = metadata {
             let title = metadata
                 .title()
@@ -25,20 +27,20 @@ impl Track {
                 .to_string();
 
             // multitags doesn't have this??
-            // let track = metadata.track_number().unwrap_or(0);
-            let track = 0;
+            let track = metadata.track_number().unwrap_or(0);
+            // let track = 0;
 
-            // let album = metadata
-            //     .album()
-            //     .unwrap_or(Album::with_title("Unknown album"));
+            let album = metadata
+                .album()
+                .unwrap_or(Album::with_title("Unknown album"));
 
-            let album = metadata.get_album_info().unwrap_or(Album::default());
+            // let album = metadata.get_album_info().unwrap_or(Album::default());
 
-            // let album_title = album.title.to_string();
-            // let album_artist = album.artist.unwrap_or("Unknown Album Artist").to_string();
+            let album_title = album.title.to_string();
+            let album_artist = album.artist.unwrap_or("Unknown Album Artist").to_string();
 
-            let album_title = album.title.unwrap_or(String::from("Unknown album"));
-            let album_artist = album.artist.unwrap_or(String::from("Unknown Album Artist"));
+            // let album_title = album.title.unwrap_or(String::from("Unknown album"));
+            // let album_artist = album.artist.unwrap_or(String::from("Unknown Album Artist"));
 
             Ok(Track {
                 path: path.to_string_lossy().to_string(),
