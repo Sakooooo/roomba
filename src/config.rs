@@ -13,6 +13,32 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn save(&self, dirs: Option<AppDirs>) {
+        if let Some(appdirs) = dirs {
+            let config_path = appdirs.config_dir;
+
+            let config_file = std::path::Path::join(&config_path, "config.toml");
+
+            match std::fs::write(
+                config_file,
+                match toml::to_string(self) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        println!("Failed to serialize config file: {}", e);
+                        return;
+                    }
+                },
+            ) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Failed to create config file: {}", e);
+                    return;
+                }
+            };
+
+            println!("Saved config file.");
+        }
+    }
     /// read the coonfig file or create a new one if it doesn't exist
     pub fn read_from_file_or_new(dirs: Option<AppDirs>) -> Config {
         if let Some(appdirs) = dirs {
