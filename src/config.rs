@@ -2,8 +2,14 @@ use platform_dirs::AppDirs;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Deserialize, Serialize)]
+pub struct LibraryDefinition {
+    path: String,
+    cache_id: String, // TODO: Replace this with the uuid library thingy
+}
+
+#[derive(Default, Deserialize, Serialize)]
 pub struct Config {
-    libraries: Option<Vec<String>>,
+    libraries: Option<LibraryDefinition>,
 }
 
 impl Config {

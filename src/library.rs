@@ -8,11 +8,11 @@ use multitag::{Tag, data::Album};
 
 #[derive(Debug)]
 pub struct Track {
-    path: String,
-    title: String,
-    track: u16,
-    album_title: String,
-    album_artist: String,
+    pub path: String,
+    pub title: String,
+    pub track: u16,
+    pub album_title: String,
+    pub album_artist: String,
 }
 
 impl Track {
@@ -56,6 +56,7 @@ impl Track {
 
 pub struct Library {
     path: String,
+    pub(crate) tracks: BTreeMap<String, Vec<Track>>,
 }
 
 impl Library {
@@ -74,15 +75,18 @@ impl Library {
             return Err(());
         }
 
-        Self::scan(path);
+        let tracks = Self::scan(path);
 
         let path_string = path.to_string_lossy().to_string();
 
-        Ok(Library { path: path_string })
+        Ok(Library {
+            path: path_string,
+            tracks,
+        })
     }
 
     // TODO: make this async
-    pub fn scan(path: &Path) {
+    pub fn scan(path: &Path) -> BTreeMap<String, Vec<Track>> {
         let mut queued_folders: Vec<PathBuf> = vec![path.to_owned()];
         let mut collected_files: Vec<PathBuf> = Vec::new();
 
@@ -108,17 +112,25 @@ impl Library {
 
         dbg!(&collected_files);
 
-        let mut tracks: BTreeMap<String, Track> = BTreeMap::new();
+        let mut tracks: Vec<Track> = Vec::new();
 
         for file in collected_files {
             let track = Track::new_from_path(file);
             if let Ok(track) = track {
                 dbg!(&track);
-                let album = &track.album_title;
-                tracks.insert(album.clone(), track);
+                tracks.push(track);
             }
         }
 
-        dbg!(tracks);
+        let mut result: BTreeMap<String, Vec<Track>> = BTreeMap::new();
+
+        for track in tracks {
+            result
+                .entry(track.album_title.clone())
+                .or_insert_with(Vec::new)
+                .push(track);
+        }
+
+        result
     }
 }
