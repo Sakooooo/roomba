@@ -16,33 +16,35 @@
   in {
     devShells.${system}.default = let
       dlopenLibraries = with pkgs; [
-        libxkbcommon
+	libxkbcommon
 
-        # GPU backend
-        vulkan-loader
-        # libGL
+	# GPU backend
+	vulkan-loader
+	# libGL
 
-        # Window system
-        wayland
-        # xorg.libX11
-        # xorg.libXcursor
-        # xorg.libXi
+	# Window system
+	wayland
+	# xorg.libX11
+	# xorg.libXcursor
+	# xorg.libXi
+	sqlite
       ];
     in
       pkgs.mkShell {
-        packages = with pkgs; [
-          rustc
-          cargo
-          clippy
-          rustfmt
-          pkg-config
-          alsa-lib # for rodio
-          dioxus-cli
-          lld
-        ];
+	packages = with pkgs; [
+	  rustc
+	  cargo
+	  clippy
+	  rustfmt
+	  pkg-config
+	  alsa-lib # for rodio
+	  sqlite
+	  dioxus-cli
+	  lld
+	];
 
-        RUSTFLAGS = "-C link-arg=-Wl,-rpath,${nixpkgs.lib.makeLibraryPath dlopenLibraries}";
-        RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+	RUSTFLAGS = "-C link-arg=-Wl,-rpath,${nixpkgs.lib.makeLibraryPath dlopenLibraries}";
+	RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
       };
   };
 }

@@ -6,6 +6,7 @@ use iced::widget::{button, column, container, scrollable, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
 use rfd::AsyncFileDialog;
+use rusqlite::Connection;
 
 mod config;
 mod track;
@@ -29,6 +30,35 @@ impl App {
     fn new() -> Self {
         let app_dirs = AppDirs::new(Some("roomba"), true);
         let config = Config::read_from_file_or_new(app_dirs.clone());
+
+        let db_path: std::path::PathBuf = if let Some(app_dirs) = &app_dirs {
+            if !&app_dirs.data_dir.exists() {
+                match std::fs::create_dir_all(&app_dirs.data_dir) {
+                    Ok(_) => println!(
+                        "Managed to create data directory at {:#?}",
+                        &app_dirs.data_dir
+                    ),
+                    Err(e) => {
+                        println!("failed to create data directory {}", e);
+                    }
+                };
+            }
+            std::path::Path::join(&app_dirs.data_dir, "roomba.db")
+        } else {
+            std::path::Path::new("./roomba.db").to_path_buf()
+        };
+
+        let conn = match Connection::open(db_path) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                println!(
+                    "Failed to connect to database! Library will not load. {}",
+                    e
+                );
+                None
+            }
+        };
+
         let loaded_libraries = Vec::new();
         App {
             app_dirs,

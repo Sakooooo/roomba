@@ -4,7 +4,7 @@ use std::{
 };
 
 // what do you mean audiotags doesn't have support for opus lmfao
-use multitag::{Tag, data::Album};
+use multitag::{data::Album, Tag};
 
 #[derive(Debug)]
 pub struct Track {
@@ -55,11 +55,18 @@ impl Track {
 }
 
 pub struct Library {
-    path: String,
-    pub(crate) tracks: BTreeMap<String, Vec<Track>>,
+    // path: String,
+    pub tracks: BTreeMap<String, Vec<Track>>,
 }
 
+fn migrate_db(conn: rusqlite::Connection) {}
+
 impl Library {
+    pub fn new_from_db(conn: rusqlite::Connection) -> Self {
+        Self {
+            tracks: BTreeMap::new(),
+        }
+    }
     pub fn new_from_path(path: impl AsRef<Path>) -> Self {
         if let Ok(library) = Self::new_from_path_impl(path.as_ref()) {
             library
@@ -79,10 +86,7 @@ impl Library {
 
         let path_string = path.to_string_lossy().to_string();
 
-        Ok(Library {
-            path: path_string,
-            tracks,
-        })
+        Ok(Library { tracks })
     }
 
     // TODO: make this async
