@@ -59,6 +59,10 @@ impl App {
             }
         };
 
+        if let Some(conn) = conn {
+            Library::new_from_db(conn);
+        }
+
         let loaded_libraries = Vec::new();
         App {
             app_dirs,

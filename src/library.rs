@@ -59,10 +59,59 @@ pub struct Library {
     pub tracks: BTreeMap<String, Vec<Track>>,
 }
 
-fn migrate_db(conn: rusqlite::Connection) {}
+const MIGRATIONS: &'static [&str] = &[
+    "CREATE TABLE tracks (
+id INTEGER PRIMARY KEY
+path TEXT,
+title TEXT,
+track INTEGER,
+album_title TEXT,
+album_artist TEXT,
+);",
+    "",
+];
+
+fn migrate_db(conn: rusqlite::Connection) {
+    println!("Applying migrations...");
+
+    let version: rusqlite::Result<u32, rusqlite::Error> =
+        conn.query_one("PRAGMA user_version", [], |row| match row.get(0) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                println!("Failed to query for user_version! {}", e);
+                Err(e)
+            }
+        });
+
+    if let Ok(version) = version {
+        let length = MIGRATIONS.len() as u32;
+        if version > length {
+            println!("You are using a newer database, with an older version!");
+            println!("Exiting...");
+            panic!("Database is newer than maximum migration version");
+        }
+
+        for migration_number in version..length {
+            match conn.execute(MIGRATIONS[migration_number as usize], ()) {
+                Ok(_) => println!("Migration {} was successful", migration_number),
+                Err(e) => println!("failed to run migration {}, {}", migration_number, e),
+            };
+            match conn.execute("PRAGMA user_version = ?1", ((&migration_number),)) {
+                Ok(_) => println!(
+                    "bump version to Migration {} was successful",
+                    migration_number
+                ),
+                Err(e) => println!("failed to bump migration {}, {}", migration_number, e),
+            };
+        }
+    } else {
+        println!("Failed to query version, {:#?}", version);
+    };
+}
 
 impl Library {
     pub fn new_from_db(conn: rusqlite::Connection) -> Self {
+        migrate_db(conn);
         Self {
             tracks: BTreeMap::new(),
         }
