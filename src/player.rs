@@ -1,4 +1,6 @@
-use std::path::Path;
+use std::{path::Path, time::Duration};
+
+use rodio::Source;
 
 use crate::library::Track;
 
@@ -6,6 +8,7 @@ pub struct Player {
     handle: rodio::MixerDeviceSink,
     player: Option<rodio::Player>, // this plays the audio
     pub current_track: Option<Track>,
+    pub duration: Option<Duration>,
     pub current_cover: Option<iced::widget::image::Handle>,
 }
 
@@ -19,6 +22,15 @@ impl Player {
             player: None,
             current_track: None,
             current_cover: None,
+            duration: None,
+        }
+    }
+
+    pub fn get_position(&self) -> Duration {
+        if let Some(player) = &self.player {
+            player.get_pos()
+        } else {
+            Duration::new(0, 0)
         }
     }
 
@@ -26,12 +38,10 @@ impl Player {
         self.play_path_impl(path.as_ref())
     }
 
-    pub fn is_paused(&self) -> bool {
-        if let Some(player) = &self.player {
-            player.is_paused()
-        } else {
-            false
-        }
+    pub fn is_playing(&self) -> bool {
+        self.player
+            .as_ref()
+            .is_some_and(|player| !player.is_paused() && !player.empty())
     }
 
     fn play_path_impl(&mut self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -43,15 +53,15 @@ impl Player {
             }
         };
 
-        let player = match rodio::play(&self.handle.mixer(), file) {
-            Ok(p) => p,
-            Err(e) => {
-                println!("Failed to play audio! {}", e);
-                return Err(Box::new(e));
-            }
-        };
+        let decoder = rodio::Decoder::try_from(file)?;
+
+        let duration = decoder.total_duration();
+
+        let player = rodio::Player::connect_new(&self.handle.mixer());
+        player.append(decoder);
 
         self.player = Some(player);
+        self.duration = duration;
 
         Ok(())
     }

@@ -28,6 +28,7 @@ enum Message {
     SaveLibrary(Library),
     PlayTrack(Track),
     PlayPause,
+    PlaybackTick,
 }
 
 impl App {
@@ -71,7 +72,7 @@ impl App {
             }
         };
 
-        let player = player::Player::new();
+        let player: player::Player = player::Player::new();
 
         App {
             app_dirs,
@@ -81,6 +82,15 @@ impl App {
             player,
         }
     }
+
+    fn subscription(&self) -> iced::Subscription<Message> {
+        if self.player.is_playing() {
+            iced::time::every(std::time::Duration::from_millis(250)).map(|_| Message::PlaybackTick)
+        } else {
+            iced::Subscription::none()
+        }
+    }
+
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::PickFolder => Task::perform(
@@ -144,6 +154,7 @@ impl App {
                 self.player.toggle_pause();
                 Task::none()
             }
+            Message::PlaybackTick => Task::none(), // Redraws it
         }
     }
 
@@ -166,15 +177,21 @@ impl App {
     }
 
     fn now_playing(&self) -> Element<'_, Message> {
+        let duration = self
+            .player
+            .duration
+            .unwrap_or(std::time::Duration::new(0, 0))
+            .as_secs_f32();
         container(column![
             self.player.current_cover.clone().map(iced::widget::image),
             text("Now playing"),
-            button(if self.player.is_paused() {
-                "play"
-            } else {
+            button(if self.player.is_playing() {
                 "pause"
+            } else {
+                "play"
             })
-            .on_press(Message::PlayPause)
+            .on_press(Message::PlayPause),
+            iced::widget::progress_bar(0.0..=duration, self.player.get_position().as_secs_f32())
         ])
         .into()
     }
@@ -198,6 +215,7 @@ impl App {
 }
 fn main() -> iced::Result {
     iced::application(App::new, App::update, App::view)
+        .subscription(App::subscription)
         .title("Roomba")
         .run()
 }
