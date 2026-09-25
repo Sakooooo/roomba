@@ -169,7 +169,12 @@ impl App {
         container(column![
             self.player.current_cover.clone().map(iced::widget::image),
             text("Now playing"),
-            button("pause play button").on_press(Message::PlayPause)
+            button(if self.player.is_paused() {
+                "play"
+            } else {
+                "pause"
+            })
+            .on_press(Message::PlayPause)
         ])
         .into()
     }

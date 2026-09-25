@@ -26,6 +26,14 @@ impl Player {
         self.play_path_impl(path.as_ref())
     }
 
+    pub fn is_paused(&self) -> bool {
+        if let Some(player) = &self.player {
+            player.is_paused()
+        } else {
+            false
+        }
+    }
+
     fn play_path_impl(&mut self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let file = match std::fs::File::open(path) {
             Ok(c) => c,
