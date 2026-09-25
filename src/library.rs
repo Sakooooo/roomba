@@ -61,19 +61,16 @@ pub struct Library {
     pub tracks: BTreeMap<String, Vec<Track>>,
 }
 
-const MIGRATIONS: &'static [&str] = &[
-    "CREATE TABLE tracks (
-id INTEGER PRIMARY KEY
+const MIGRATIONS: &'static [&str] = &["CREATE TABLE tracks (
+id INTEGER PRIMARY KEY,
 path TEXT,
 title TEXT,
 track INTEGER,
 album_title TEXT,
-album_artist TEXT,
-);",
-    "",
-];
+album_artist TEXT
+);"];
 
-fn migrate_db(conn: rusqlite::Connection) {
+fn migrate_db(conn: &rusqlite::Connection) {
     println!("Applying migrations...");
 
     let version: rusqlite::Result<u32, rusqlite::Error> =
@@ -87,24 +84,28 @@ fn migrate_db(conn: rusqlite::Connection) {
 
     if let Ok(version) = version {
         let length = MIGRATIONS.len() as u32;
-        if version > length {
+        if version + 1 > length {
             println!("You are using a newer database, with an older version!");
             println!("Exiting...");
             panic!("Database is newer than maximum migration version");
         }
 
-        for migration_number in version..length {
-            match conn.execute(MIGRATIONS[migration_number as usize], ()) {
-                Ok(_) => println!("Migration {} was successful", migration_number),
-                Err(e) => println!("failed to run migration {}, {}", migration_number, e),
-            };
-            match conn.execute("PRAGMA user_version = ?1", ((&migration_number),)) {
-                Ok(_) => println!(
-                    "bump version to Migration {} was successful",
-                    migration_number
-                ),
-                Err(e) => println!("failed to bump migration {}, {}", migration_number, e),
-            };
+        if version + 1 != length {
+            for migration_number in version..length {
+                match conn.execute(MIGRATIONS[migration_number as usize], ()) {
+                    Ok(_) => println!("Migration {} was successful", migration_number),
+                    Err(e) => println!("failed to run migration {}, {}", migration_number, e),
+                };
+
+                let pragma_update = format!("PRAGMA user_version = {}", migration_number + 1);
+                match conn.execute(&pragma_update, []) {
+                    Ok(_) => println!(
+                        "bump version to Migration {} was successful",
+                        migration_number
+                    ),
+                    Err(e) => println!("failed to bump migration {}, {}", migration_number, e),
+                };
+            }
         }
     } else {
         println!("Failed to query version, {:#?}", version);
@@ -112,10 +113,79 @@ fn migrate_db(conn: rusqlite::Connection) {
 }
 
 impl Library {
-    pub fn new_from_db(conn: rusqlite::Connection) -> Self {
-        migrate_db(conn);
-        Self {
-            tracks: BTreeMap::new(),
+    pub fn new_from_db(conn: &rusqlite::Connection) -> Self {
+        migrate_db(&conn);
+
+        let mut track_query = match conn
+            .prepare("SELECT path, title, track, album_title, album_artist FROM tracks")
+        {
+            Ok(q) => q,
+            Err(e) => {
+                println!("Failed to prepare query {}", e);
+                return Self {
+                    tracks: BTreeMap::new(),
+                };
+            }
+        };
+
+        let track_iter = track_query.query_map([], |row| {
+            let path: String = if let Ok(path) = row.get(0) {
+                path
+            } else {
+                String::from("")
+            };
+
+            let title: String = if let Ok(title) = row.get(1) {
+                title
+            } else {
+                String::from("Unknown track")
+            };
+
+            let track: u16 = if let Ok(track) = row.get(2) { track } else { 0 };
+
+            let album_title: String = if let Ok(album_title) = row.get(3) {
+                album_title
+            } else {
+                String::from("Unknown album")
+            };
+
+            let album_artist: String = if let Ok(album_artist) = row.get(4) {
+                album_artist
+            } else {
+                String::from("Unknown artist")
+            };
+
+            Ok(Track {
+                path,
+                title,
+                track,
+                album_title,
+                album_artist,
+            })
+        });
+
+        if let Ok(track_iter) = track_iter {
+            let mut tracks: BTreeMap<String, Vec<Track>> = BTreeMap::new();
+
+            for track in track_iter {
+                match track {
+                    Ok(t) => {
+                        tracks
+                            .entry(t.album_title.clone())
+                            .or_insert_with(Vec::new)
+                            .push(t);
+                    }
+                    Err(e) => println!("Failed to add a track! {}", e),
+                }
+            }
+            Self { tracks }
+        } else {
+            // TODO: Error checking here
+            println!("it didn't work lmao");
+
+            Self {
+                tracks: BTreeMap::new(),
+            }
         }
     }
     pub fn new_from_path(path: impl AsRef<Path>) -> Self {
