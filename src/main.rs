@@ -18,6 +18,7 @@ struct App {
     library: Library,
     db_conn: Option<Connection>,
     player: player::Player,
+    to_seek: Option<f32>,
 }
 
 #[derive(Clone)]
@@ -29,6 +30,8 @@ enum Message {
     PlayTrack(Track),
     PlayPause,
     PlaybackTick,
+    Seek(f32),
+    ReleaseSeek,
 }
 
 impl App {
@@ -80,6 +83,7 @@ impl App {
             library,
             db_conn,
             player,
+            to_seek: None,
         }
     }
 
@@ -155,6 +159,18 @@ impl App {
                 Task::none()
             }
             Message::PlaybackTick => Task::none(), // Redraws it
+            Message::Seek(secs) => {
+                self.to_seek = Some(secs);
+                Task::none()
+            }
+            Message::ReleaseSeek => {
+                if let Some(secs) = self.to_seek.take() {
+                    if let Err(e) = self.player.seek(std::time::Duration::from_secs_f32(secs)) {
+                        println!("Failed to seek {}", e);
+                    }
+                };
+                Task::none()
+            }
         }
     }
 
@@ -177,6 +193,12 @@ impl App {
     }
 
     fn now_playing(&self) -> Element<'_, Message> {
+        let total = self.player.duration.unwrap_or_default().as_secs_f32();
+
+        let position = self
+            .to_seek
+            .unwrap_or_else(|| self.player.get_position().as_secs_f32());
+
         let duration = self
             .player
             .duration
@@ -191,7 +213,10 @@ impl App {
                 "play"
             })
             .on_press(Message::PlayPause),
-            iced::widget::progress_bar(0.0..=duration, self.player.get_position().as_secs_f32())
+            // iced::widget::progress_bar(0.0..=duration, self.player.get_position().as_secs_f32())
+            iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
+                .on_release(Message::ReleaseSeek)
+                .step(0.1)
         ])
         .into()
     }

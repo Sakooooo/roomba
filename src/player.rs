@@ -38,6 +38,12 @@ impl Player {
         self.play_path_impl(path.as_ref())
     }
 
+    pub fn seek(&self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        match &self.player {
+            Some(player) => player.try_seek(pos),
+            None => Ok(()),
+        }
+    }
     pub fn is_playing(&self) -> bool {
         self.player
             .as_ref()
