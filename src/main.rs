@@ -89,7 +89,7 @@ impl App {
 
     fn subscription(&self) -> iced::Subscription<Message> {
         if self.player.is_playing() {
-            iced::time::every(std::time::Duration::from_millis(250)).map(|_| Message::PlaybackTick)
+            iced::time::every(std::time::Duration::from_secs(1)).map(|_| Message::PlaybackTick)
         } else {
             iced::Subscription::none()
         }
