@@ -14,7 +14,8 @@ mod track;
 struct App {
     app_dirs: Option<AppDirs>,
     config: Config,
-    loaded_libraries: Vec<Library>,
+    library: Library,
+    db_conn: Option<Connection>,
 }
 
 mod library;
@@ -24,6 +25,7 @@ enum Message {
     PickFolder,
     LibraryPicked(Option<rfd::FileHandle>),
     ScanLibrary(std::path::PathBuf),
+    SaveLibrary(Library),
 }
 
 impl App {
@@ -48,7 +50,7 @@ impl App {
             std::path::Path::new("./roomba.db").to_path_buf()
         };
 
-        let conn = match Connection::open(db_path) {
+        let db_conn = match Connection::open(db_path) {
             Ok(c) => Some(c),
             Err(e) => {
                 println!(
@@ -59,15 +61,19 @@ impl App {
             }
         };
 
-        if let Some(conn) = conn {
-            Library::new_from_db(&conn);
-        }
+        let library = if let Some(conn) = &db_conn {
+            Library::new_from_db(conn)
+        } else {
+            Library {
+                tracks: BTreeMap::new(),
+            }
+        };
 
-        let loaded_libraries = Vec::new();
         App {
             app_dirs,
             config,
-            loaded_libraries,
+            library,
+            db_conn,
         }
     }
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -94,21 +100,49 @@ impl App {
             }
             Message::ScanLibrary(path) => {
                 dbg!(&path);
-                self.loaded_libraries.push(Library::new_from_path(path));
+
+                let library = Library::new_from_path(path);
+                self.library = library.clone();
+                Task::done(Message::SaveLibrary(library))
+            }
+            Message::SaveLibrary(library) => {
+                if let Some(conn) = &self.db_conn {
+                    library.save_to_db(conn);
+                }
                 Task::none()
             }
         }
     }
 
+    fn tracks(&self) -> iced::widget::Scrollable<'_, Message> {
+        scrollable(self.library.tracks.iter().flat_map(|(album, tracks)| {
+            std::iter::once(container(text(album.as_str())).height(25).into()).chain(
+                tracks
+                    .iter()
+                    .map(|track| button(text(track.title.as_str()).width(iced::Fill))),
+            )
+        }))
+        .into()
+        // iced::widget::column(self.library.tracks.iter().map(|(album, tracks)| {
+        //     iced::widget::row![
+        //         text(album.clone()),
+        //         tracks
+        //             .iter()
+        //             .map(|track| { button(text(track.title.clone())).width(iced::Fill).into() })
+        //     ]
+        //     .into()
+        // }))
+        // .into()
+    }
+
     fn view(&self) -> Element<'_, Message> {
         let tracks: iced::widget::Scrollable<'_, Message> = {
             let mut col = iced::widget::Column::new();
-            for library in &self.loaded_libraries {
-                for (album, list) in &library.tracks {
-                    col = col.push(container(text(album.clone())).height(25));
-                    for track in list {
-                        col = col.push(button(text(track.title.clone()).width(iced::Fill)));
-                    }
+
+            for (album, list) in &self.library.tracks {
+                col = col.push(container(text(album.clone())).height(25));
+                for track in list {
+                    col = col.push(button(text(track.title.clone()).width(iced::Fill)));
                 }
             }
             scrollable(col)

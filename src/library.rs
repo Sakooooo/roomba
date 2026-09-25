@@ -4,10 +4,10 @@ use std::{
 };
 
 // what do you mean audiotags doesn't have support for opus lmfao
-// use multitag::{Tag, data::Album};
-use audiotags::{Album, Tag};
+use multitag::{data::Album, Tag};
+// use audiotags::{Album, Tag};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Track {
     pub path: String,
     pub title: String,
@@ -18,7 +18,8 @@ pub struct Track {
 
 impl Track {
     pub fn new_from_path(path: PathBuf) -> Result<Self, ()> {
-        let metadata = Tag::new().read_from_path(&path);
+        // let metadata = Tag::new().read_from_path(&path);
+        let metadata = Tag::read_from_path(&path);
         // let metadata = Tag::read_from_path(&path);
         if let Ok(metadata) = metadata {
             let title = metadata
@@ -27,20 +28,20 @@ impl Track {
                 .to_string();
 
             // multitags doesn't have this??
-            let track = metadata.track_number().unwrap_or(0);
-            // let track = 0;
+            // let track = metadata.track_number().unwrap_or(0);
+            let track = 0;
 
-            let album = metadata
-                .album()
-                .unwrap_or(Album::with_title("Unknown album"));
+            // let album = metadata
+            //     .album()
+            //     .unwrap_or(Album::with_title("Unknown album"));
 
-            // let album = metadata.get_album_info().unwrap_or(Album::default());
+            let album = metadata.get_album_info().unwrap_or(Album::default());
 
-            let album_title = album.title.to_string();
-            let album_artist = album.artist.unwrap_or("Unknown Album Artist").to_string();
+            // let album_title = album.title.to_string();
+            // let album_artist = album.artist.unwrap_or("Unknown Album Artist").to_string();
 
-            // let album_title = album.title.unwrap_or(String::from("Unknown album"));
-            // let album_artist = album.artist.unwrap_or(String::from("Unknown Album Artist"));
+            let album_title = album.title.unwrap_or(String::from("Unknown album"));
+            let album_artist = album.artist.unwrap_or(String::from("Unknown Album Artist"));
 
             Ok(Track {
                 path: path.to_string_lossy().to_string(),
@@ -56,6 +57,7 @@ impl Track {
     }
 }
 
+#[derive(Clone)]
 pub struct Library {
     // path: String,
     pub tracks: BTreeMap<String, Vec<Track>>,
@@ -119,7 +121,10 @@ impl Library {
         let mut track_query = match conn
             .prepare("SELECT path, title, track, album_title, album_artist FROM tracks")
         {
-            Ok(q) => q,
+            Ok(q) => {
+                println!("Got one");
+                q
+            }
             Err(e) => {
                 println!("Failed to prepare query {}", e);
                 return Self {
@@ -155,6 +160,8 @@ impl Library {
                 String::from("Unknown artist")
             };
 
+            println!("Transforming");
+
             Ok(Track {
                 path,
                 title,
@@ -164,10 +171,15 @@ impl Library {
             })
         });
 
+        println!("Making library");
+
         if let Ok(track_iter) = track_iter {
             let mut tracks: BTreeMap<String, Vec<Track>> = BTreeMap::new();
 
+            println!("track iter");
+
             for track in track_iter {
+                println!("track iter thing");
                 match track {
                     Ok(t) => {
                         tracks
@@ -188,6 +200,21 @@ impl Library {
             }
         }
     }
+
+    pub fn save_to_db(&self, conn: &rusqlite::Connection) {
+        for (album, tracks) in &self.tracks {
+            for track in tracks {
+                match conn.execute(
+                    "INSERT INTO tracks (path, title, track, album_title, album_artist) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    (&track.path, &track.title, &track.track, &album, &track.album_artist)
+                ) {
+                    Ok(_) => println!("Successfully saved track {}", &track.title),
+                    Err(e) => println!("Failed to save track! {}", e),
+                };
+            }
+        }
+    }
+
     pub fn new_from_path(path: impl AsRef<Path>) -> Self {
         if let Ok(library) = Self::new_from_path_impl(path.as_ref()) {
             library
