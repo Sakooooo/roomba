@@ -4,7 +4,7 @@ use std::{
 };
 
 // what do you mean audiotags doesn't have support for opus lmfao
-use multitag::{data::Album, Tag};
+use multitag::{Tag, data::Album};
 // use audiotags::{Album, Tag};
 
 #[derive(Debug, Clone)]
@@ -86,28 +86,26 @@ fn migrate_db(conn: &rusqlite::Connection) {
 
     if let Ok(version) = version {
         let length = MIGRATIONS.len() as u32;
-        if version + 1 > length {
+        if version > length {
             println!("You are using a newer database, with an older version!");
             println!("Exiting...");
             panic!("Database is newer than maximum migration version");
         }
 
-        if version + 1 != length {
-            for migration_number in version..length {
-                match conn.execute(MIGRATIONS[migration_number as usize], ()) {
-                    Ok(_) => println!("Migration {} was successful", migration_number),
-                    Err(e) => println!("failed to run migration {}, {}", migration_number, e),
-                };
+        for migration_number in version..length {
+            match conn.execute(MIGRATIONS[migration_number as usize], ()) {
+                Ok(_) => println!("Migration {} was successful", migration_number),
+                Err(e) => println!("failed to run migration {}, {}", migration_number, e),
+            };
 
-                let pragma_update = format!("PRAGMA user_version = {}", migration_number + 1);
-                match conn.execute(&pragma_update, []) {
-                    Ok(_) => println!(
-                        "bump version to Migration {} was successful",
-                        migration_number
-                    ),
-                    Err(e) => println!("failed to bump migration {}, {}", migration_number, e),
-                };
-            }
+            let pragma_update = format!("PRAGMA user_version = {}", migration_number + 1);
+            match conn.execute(&pragma_update, []) {
+                Ok(_) => println!(
+                    "bump version to Migration {} + 1 was successful",
+                    migration_number
+                ),
+                Err(e) => println!("failed to bump migration {}, {}", migration_number, e),
+            };
         }
     } else {
         println!("Failed to query version, {:#?}", version);
@@ -231,8 +229,6 @@ impl Library {
         }
 
         let tracks = Self::scan(path);
-
-        let path_string = path.to_string_lossy().to_string();
 
         Ok(Library { tracks })
     }

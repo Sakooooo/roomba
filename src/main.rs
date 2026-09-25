@@ -2,14 +2,13 @@ use std::collections::BTreeMap;
 
 use crate::config::Config;
 use crate::library::Library;
-use iced::widget::{button, column, container, scrollable, stack, text};
+use iced::widget::{button, column, container, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
 use rfd::AsyncFileDialog;
 use rusqlite::Connection;
 
 mod config;
-mod track;
 
 struct App {
     app_dirs: Option<AppDirs>,
@@ -115,38 +114,23 @@ impl App {
     }
 
     fn tracks(&self) -> iced::widget::Scrollable<'_, Message> {
-        scrollable(self.library.tracks.iter().flat_map(|(album, tracks)| {
-            std::iter::once(container(text(album.as_str())).height(25).into()).chain(
-                tracks
-                    .iter()
-                    .map(|track| button(text(track.title.as_str()).width(iced::Fill))),
-            )
-        }))
+        iced::widget::scrollable(iced::widget::column(self.library.tracks.iter().map(
+            |(album, tracks)| {
+                container(iced::widget::column![
+                    text(album),
+                    iced::widget::column(
+                        tracks.iter().map(|track| button(text(track.title.clone()))
+                            .width(iced::Fill)
+                            .into())
+                    )
+                ])
+                .into()
+            },
+        )))
         .into()
-        // iced::widget::column(self.library.tracks.iter().map(|(album, tracks)| {
-        //     iced::widget::row![
-        //         text(album.clone()),
-        //         tracks
-        //             .iter()
-        //             .map(|track| { button(text(track.title.clone())).width(iced::Fill).into() })
-        //     ]
-        //     .into()
-        // }))
-        // .into()
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let tracks: iced::widget::Scrollable<'_, Message> = {
-            let mut col = iced::widget::Column::new();
-
-            for (album, list) in &self.library.tracks {
-                col = col.push(container(text(album.clone())).height(25));
-                for track in list {
-                    col = col.push(button(text(track.title.clone()).width(iced::Fill)));
-                }
-            }
-            scrollable(col)
-        };
         let left: iced::widget::Container<'_, Message> =
             container(text("Left")).align_left(iced::Fill);
 
@@ -154,7 +138,7 @@ impl App {
             container(column![
                 button(text("Pick Library")).on_press(Message::PickFolder),
                 button(text("I have to use this button because for some reason, my xdg portal is broken and I don't know why!")).on_press(Message::ScanLibrary(std::path::Path::new("/home/user/Music").into())),
-                tracks
+                self.tracks()
             ]).align_right(iced::Fill);
 
         let content = column![left, right];
