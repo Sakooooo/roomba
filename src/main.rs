@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::config::Config;
-use crate::library::Library;
+use crate::library::{Library, Track};
 use iced::widget::{button, column, container, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
@@ -9,15 +9,16 @@ use rfd::AsyncFileDialog;
 use rusqlite::Connection;
 
 mod config;
+mod library;
+mod player;
 
 struct App {
     app_dirs: Option<AppDirs>,
     config: Config,
     library: Library,
     db_conn: Option<Connection>,
+    player: player::Player,
 }
-
-mod library;
 
 #[derive(Clone)]
 enum Message {
@@ -25,6 +26,8 @@ enum Message {
     LibraryPicked(Option<rfd::FileHandle>),
     ScanLibrary(std::path::PathBuf),
     SaveLibrary(Library),
+    PlayTrack(Track),
+    PlayPause,
 }
 
 impl App {
@@ -68,11 +71,14 @@ impl App {
             }
         };
 
+        let player = player::Player::new();
+
         App {
             app_dirs,
             config,
             library,
             db_conn,
+            player,
         }
     }
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -110,6 +116,19 @@ impl App {
                 }
                 Task::none()
             }
+            Message::PlayTrack(track) => {
+                match self.player.play_path(&track.path) {
+                    Ok(_) => println!("Playing {}", &track.title),
+                    Err(e) => {
+                        println!("Failed to play track! {}", e)
+                    }
+                }
+                Task::none()
+            }
+            Message::PlayPause => {
+                self.player.toggle_pause();
+                Task::none()
+            }
         }
     }
 
@@ -118,11 +137,12 @@ impl App {
             |(album, tracks)| {
                 container(iced::widget::column![
                     text(album),
-                    iced::widget::column(
-                        tracks.iter().map(|track| button(text(track.title.clone()))
+                    iced::widget::column(tracks.iter().map(|track| {
+                        button(text(track.title.clone()))
+                            .on_press(Message::PlayTrack(track.clone()))
                             .width(iced::Fill)
-                            .into())
-                    )
+                            .into()
+                    }))
                 ])
                 .into()
             },
@@ -130,18 +150,27 @@ impl App {
         .into()
     }
 
+    fn now_playing(&self) -> Element<'_, Message> {
+        container(column![
+            text("Now playing"),
+            button("pause play button").on_press(Message::PlayPause)
+        ])
+        .into()
+    }
+
     fn view(&self) -> Element<'_, Message> {
-        let left: iced::widget::Container<'_, Message> =
-            container(text("Left")).align_left(iced::Fill);
+        let left: iced::widget::Container<'_, Message> = container(column![self.now_playing()])
+            .align_left(iced::Fill)
+            .height(iced::Fill);
 
         let right: iced::widget::Container<'_, Message> =
             container(column![
                 button(text("Pick Library")).on_press(Message::PickFolder),
                 button(text("I have to use this button because for some reason, my xdg portal is broken and I don't know why!")).on_press(Message::ScanLibrary(std::path::Path::new("/home/user/Music").into())),
                 self.tracks()
-            ]).align_right(iced::Fill);
+            ]).align_right(iced::Fill).height(iced::Fill);
 
-        let content = column![left, right];
+        let content = iced::widget::row![left, right];
 
         stack![content].into()
     }
