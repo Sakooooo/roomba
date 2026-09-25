@@ -118,7 +118,22 @@ impl App {
             }
             Message::PlayTrack(track) => {
                 match self.player.play_path(&track.path) {
-                    Ok(_) => println!("Playing {}", &track.title),
+                    Ok(_) => {
+                        println!("Playing {}", &track.title);
+
+                        let same = self
+                            .player
+                            .current_track
+                            .as_ref()
+                            .is_some_and(|prev| prev.album_title == track.album_title);
+
+                        if !same {
+                            self.player.current_cover = Some(
+                                iced::widget::image::Handle::from_bytes(track.get_cover_image()),
+                            );
+                        }
+                        self.player.current_track = Some(track);
+                    }
                     Err(e) => {
                         println!("Failed to play track! {}", e)
                     }
@@ -152,6 +167,7 @@ impl App {
 
     fn now_playing(&self) -> Element<'_, Message> {
         container(column![
+            self.player.current_cover.clone().map(iced::widget::image),
             text("Now playing"),
             button("pause play button").on_press(Message::PlayPause)
         ])

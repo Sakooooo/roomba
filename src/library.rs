@@ -3,9 +3,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use image::EncodableLayout;
 // what do you mean audiotags doesn't have support for opus lmfao
 use multitag::{Tag, data::Album};
+
+use crate::Message;
 // use audiotags::{Album, Tag};
+
+const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
 
 #[derive(Debug, Clone)]
 pub struct Track {
@@ -20,7 +25,6 @@ impl Track {
     pub fn new_from_path(path: PathBuf) -> Result<Self, ()> {
         // let metadata = Tag::new().read_from_path(&path);
         let metadata = Tag::read_from_path(&path);
-        // let metadata = Tag::read_from_path(&path);
         if let Ok(metadata) = metadata {
             let title = metadata
                 .title()
@@ -53,6 +57,21 @@ impl Track {
         } else {
             println!("Failed to read metadata");
             Err(())
+        }
+    }
+
+    pub fn get_cover_image(&self) -> Vec<u8> {
+        // let metadata = Tag::new().read_from_path(&path);
+        let metadata = Tag::read_from_path(&self.path);
+
+        //multitag
+        if let Ok(metadata) = metadata
+            && let Some(album) = metadata.get_album_info()
+            && let Some(cover) = album.cover
+        {
+            cover.data.to_vec()
+        } else {
+            MISSING_COVER_BYTES.to_owned()
         }
     }
 }

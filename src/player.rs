@@ -1,8 +1,12 @@
 use std::path::Path;
 
+use crate::library::Track;
+
 pub struct Player {
     handle: rodio::MixerDeviceSink,
     player: Option<rodio::Player>, // this plays the audio
+    pub current_track: Option<Track>,
+    pub current_cover: Option<iced::widget::image::Handle>,
 }
 
 impl Player {
@@ -13,6 +17,8 @@ impl Player {
         Self {
             handle,
             player: None,
+            current_track: None,
+            current_cover: None,
         }
     }
 
