@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use crate::config::Config;
 use crate::library::{Library, Track};
+use discord_rich_presence::activity::Activity;
+use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
 use iced::widget::{button, column, container, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
@@ -19,6 +21,7 @@ struct App {
     db_conn: Option<Connection>,
     player: player::Player,
     to_seek: Option<f32>,
+    discord_rpc_client: Option<DiscordIpcClient>,
 }
 
 #[derive(Clone)]
@@ -78,14 +81,74 @@ impl App {
 
         let player: player::Player = player::Player::new();
 
-        App {
+        let discord_rpc_client = {
+            let mut client = DiscordIpcClient::new("1553362356375912458");
+
+            match client.connect() {
+                Ok(()) => Some(client),
+                Err(e) => {
+                    println!("Failed to connect to discord client! {}", e);
+                    None
+                }
+            }
+        };
+
+        let mut app = App {
             app_dirs,
             config,
             library,
             db_conn,
             player,
             to_seek: None,
+            discord_rpc_client,
+        };
+
+        app.update_discord_status();
+        app
+    }
+
+    fn update_discord_status(&mut self) {
+        let Some(client) = self.discord_rpc_client.as_mut() else {
+            return;
+        };
+
+        let mut activity = Activity::new()
+            .activity_type(activity::ActivityType::Listening)
+            .status_display_type(activity::StatusDisplayType::Details)
+            .assets(activity::Assets::new().large_image("roomba_grey"));
+
+        if let Some(track) = &self.player.current_track {
+            activity = activity.details(format!(
+                "{} - {} by {}",
+                &track.album_title, &track.title, &track.album_artist
+            ));
+
+            if self.player.is_playing() {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default();
+                let start = now.saturating_sub(self.player.get_position());
+                let mut ts = activity::Timestamps::new().start(start.as_secs() as i64);
+                if let Some(total) = self.player.duration {
+                    ts = ts.end((start + total).as_secs() as i64);
+                }
+                activity = activity.timestamps(ts);
+            } else {
+                activity = activity.state("Paused");
+            }
+        } else {
+            activity = activity
+                .details("Not listening to anything!")
+                .state("Cleaning your computer...");
         }
+
+        match client.set_activity(activity) {
+            Ok(_) => println!("Successfully updated discord activity."),
+            Err(e) => {
+                println!("Failed to update discord status! {}", e);
+                self.discord_rpc_client = None;
+            }
+        };
     }
 
     fn subscription(&self) -> iced::Subscription<Message> {
@@ -148,6 +211,7 @@ impl App {
                             );
                         }
                         self.player.current_track = Some(track);
+                        self.update_discord_status();
                     }
                     Err(e) => {
                         println!("Failed to play track! {}", e)
@@ -157,6 +221,7 @@ impl App {
             }
             Message::PlayPause => {
                 self.player.toggle_pause();
+                self.update_discord_status();
                 Task::none()
             }
             Message::PlaybackTick => Task::none(), // Redraws it
@@ -170,6 +235,7 @@ impl App {
                         println!("Failed to seek {}", e);
                     }
                 };
+                self.update_discord_status();
                 Task::none()
             }
             Message::Volume(vol) => {
