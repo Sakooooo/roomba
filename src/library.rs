@@ -3,11 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use image::EncodableLayout;
 // what do you mean audiotags doesn't have support for opus lmfao
 use multitag::{Tag, data::Album};
 
-use crate::Message;
 // use audiotags::{Album, Tag};
 
 const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");

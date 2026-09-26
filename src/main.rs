@@ -199,11 +199,6 @@ impl App {
             .to_seek
             .unwrap_or_else(|| self.player.get_position().as_secs_f32());
 
-        let duration = self
-            .player
-            .duration
-            .unwrap_or(std::time::Duration::new(0, 0))
-            .as_secs_f32();
         container(column![
             self.player.current_cover.clone().map(iced::widget::image),
             text("Now playing"),
@@ -213,7 +208,6 @@ impl App {
                 "play"
             })
             .on_press(Message::PlayPause),
-            // iced::widget::progress_bar(0.0..=duration, self.player.get_position().as_secs_f32())
             iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
                 .on_release(Message::ReleaseSeek)
                 .step(0.1)
