@@ -10,6 +10,7 @@ pub struct Player {
     pub current_track: Option<Track>,
     pub duration: Option<Duration>,
     pub current_cover: Option<iced::widget::image::Handle>,
+    pub volume: f32,
 }
 
 impl Player {
@@ -23,6 +24,7 @@ impl Player {
             current_track: None,
             current_cover: None,
             duration: None,
+            volume: 1.0,
         }
     }
 
@@ -50,6 +52,13 @@ impl Player {
             .is_some_and(|player| !player.is_paused() && !player.empty())
     }
 
+    pub fn set_volume(&self, vol: f32) {
+        match &self.player {
+            Some(player) => player.set_volume(vol),
+            None => {}
+        };
+    }
+
     fn play_path_impl(&mut self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let file = match std::fs::File::open(path) {
             Ok(c) => c,
@@ -64,6 +73,7 @@ impl Player {
         let duration = decoder.total_duration();
 
         let player = rodio::Player::connect_new(&self.handle.mixer());
+        player.set_volume(self.volume);
         player.append(decoder);
 
         self.player = Some(player);

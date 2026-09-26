@@ -32,6 +32,8 @@ enum Message {
     PlaybackTick,
     Seek(f32),
     ReleaseSeek,
+    Volume(f32),
+    ReleaseVolume,
 }
 
 impl App {
@@ -171,6 +173,14 @@ impl App {
                 };
                 Task::none()
             }
+            Message::Volume(vol) => {
+                self.player.volume = vol;
+                Task::none()
+            }
+            Message::ReleaseVolume => {
+                self.player.set_volume(self.player.volume);
+                Task::none()
+            }
         }
     }
 
@@ -210,7 +220,10 @@ impl App {
             .on_press(Message::PlayPause),
             iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
                 .on_release(Message::ReleaseSeek)
-                .step(0.1)
+                .step(0.1),
+            iced::widget::slider(0.0..=1.0, self.player.volume, Message::Volume)
+                .on_release(Message::ReleaseVolume)
+                .step(0.05)
         ])
         .into()
     }
