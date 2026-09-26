@@ -308,8 +308,17 @@ impl App {
     }
 }
 fn main() -> iced::Result {
+    let icon = iced::window::icon::from_file_data(
+        include_bytes!("../assets/roomba_grey_square.png"),
+        None,
+    )
+    .ok();
     iced::application(App::new, App::update, App::view)
         .subscription(App::subscription)
         .title("Roomba")
+        .window(iced::window::Settings {
+            icon,
+            ..Default::default()
+        })
         .run()
 }
