@@ -52,7 +52,8 @@ impl Player {
             .is_some_and(|player| !player.is_paused() && !player.empty())
     }
 
-    pub fn set_volume(&self, vol: f32) {
+    pub fn set_volume(&mut self, vol: f32) {
+        self.volume = vol;
         match &self.player {
             Some(player) => player.set_volume(vol),
             None => {}

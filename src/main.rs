@@ -33,7 +33,6 @@ enum Message {
     Seek(f32),
     ReleaseSeek,
     Volume(f32),
-    ReleaseVolume,
 }
 
 impl App {
@@ -174,11 +173,7 @@ impl App {
                 Task::none()
             }
             Message::Volume(vol) => {
-                self.player.volume = vol;
-                Task::none()
-            }
-            Message::ReleaseVolume => {
-                self.player.set_volume(self.player.volume);
+                self.player.set_volume(vol);
                 Task::none()
             }
         }
@@ -210,8 +205,11 @@ impl App {
             .unwrap_or_else(|| self.player.get_position().as_secs_f32());
 
         container(column![
-            self.player.current_cover.clone().map(iced::widget::image),
-            text("Now playing"),
+            container(self.player.current_cover.clone().map(iced::widget::image)).width(512),
+            self.player
+                .current_track
+                .clone()
+                .map(|t| text(format!("Now playing: {} - {}", t.album_title, t.title))),
             button(if self.player.is_playing() {
                 "pause"
             } else {
@@ -221,9 +219,7 @@ impl App {
             iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
                 .on_release(Message::ReleaseSeek)
                 .step(0.1),
-            iced::widget::slider(0.0..=1.0, self.player.volume, Message::Volume)
-                .on_release(Message::ReleaseVolume)
-                .step(0.05)
+            iced::widget::slider(0.0..=1.0, self.player.volume, Message::Volume).step(0.05)
         ])
         .into()
     }
