@@ -1,2 +1,4 @@
+<img src="assets/roomba_grey.png">
+
 # roomba
-a music player made in iced.rs
+A music player made in Rust with [iced.rs](https://iced.rs)
