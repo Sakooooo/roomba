@@ -3,10 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// what do you mean audiotags doesn't have support for opus lmfao
-use multitag::{Tag, data::Album};
-
-// use audiotags::{Album, Tag};
+use audiotags::{Album, Tag};
 
 const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
 
@@ -21,29 +18,21 @@ pub struct Track {
 
 impl Track {
     pub fn new_from_path(path: PathBuf) -> Result<Self, ()> {
-        // let metadata = Tag::new().read_from_path(&path);
-        let metadata = Tag::read_from_path(&path);
+        let metadata = Tag::new().read_from_path(&path);
         if let Ok(metadata) = metadata {
             let title = metadata
                 .title()
                 .unwrap_or(&path.file_name().unwrap().to_str().unwrap())
                 .to_string();
 
-            // multitags doesn't have this??
-            // let track = metadata.track_number().unwrap_or(0);
-            let track = 0;
+            let track = metadata.track_number().unwrap_or(0);
 
-            // let album = metadata
-            //     .album()
-            //     .unwrap_or(Album::with_title("Unknown album"));
+            let album = metadata
+                .album()
+                .unwrap_or(Album::with_title("Unknown album"));
 
-            let album = metadata.get_album_info().unwrap_or(Album::default());
-
-            // let album_title = album.title.to_string();
-            // let album_artist = album.artist.unwrap_or("Unknown Album Artist").to_string();
-
-            let album_title = album.title.unwrap_or(String::from("Unknown album"));
-            let album_artist = album.artist.unwrap_or(String::from("Unknown Album Artist"));
+            let album_title = album.title.to_string();
+            let album_artist = album.artist.unwrap_or("Unknown Album Artist").to_string();
 
             Ok(Track {
                 path: path.to_string_lossy().to_string(),
@@ -59,12 +48,10 @@ impl Track {
     }
 
     pub fn get_cover_image(&self) -> Vec<u8> {
-        // let metadata = Tag::new().read_from_path(&path);
-        let metadata = Tag::read_from_path(&self.path);
+        let metadata = Tag::new().read_from_path(&self.path);
 
-        //multitag
         if let Ok(metadata) = metadata
-            && let Some(album) = metadata.get_album_info()
+            && let Some(album) = metadata.album()
             && let Some(cover) = album.cover
         {
             cover.data.to_vec()
