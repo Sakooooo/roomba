@@ -1,0 +1,6 @@
+check for duplicates during rescans (you should probably just make the track title the primary key lol)
+make scanning libraries asynchronous
+status indicator for rescans
+
+do this later:
+improve interface
