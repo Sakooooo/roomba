@@ -129,10 +129,14 @@ impl App {
             .assets(activity::Assets::new().large_image("roomba_grey"));
 
         if let Some(track) = &self.player.current_track {
-            activity = activity.details(format!(
-                "{} - {} by {}",
-                &track.album_title, &track.title, &track.album_artist
-            ));
+            activity = activity
+                .name("roomba")
+                .details(format!("{} - {}", &track.title, &track.album_artist))
+                .state(format!(
+                    "Album {} on roomba {}",
+                    &track.album_title,
+                    env!("CARGO_PKG_VERSION")
+                ));
 
             if !self.player.is_paused() {
                 let now = std::time::SystemTime::now()
@@ -149,8 +153,8 @@ impl App {
             }
         } else {
             activity = activity
-                .details("Not listening to anything!")
-                .state("Cleaning your computer...");
+                .details("roomba")
+                .state("Not listening to anything currently...");
         }
 
         match client.set_activity(activity) {
