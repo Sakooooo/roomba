@@ -46,10 +46,9 @@ impl Player {
             None => Ok(()),
         }
     }
-    pub fn is_playing(&self) -> bool {
-        self.player
-            .as_ref()
-            .is_some_and(|player| !player.is_paused() && !player.empty())
+
+    pub fn is_paused(&self) -> bool {
+        self.player.as_ref().is_some_and(|p| p.is_paused())
     }
 
     pub fn set_volume(&mut self, vol: f32) {
@@ -58,6 +57,15 @@ impl Player {
             Some(player) => player.set_volume(vol),
             None => {}
         };
+    }
+
+    pub fn finished(&self) -> bool {
+        self.player.as_ref().is_some_and(|p| p.empty())
+    }
+
+    pub fn stop(&mut self) {
+        self.player = None;
+        self.duration = None;
     }
 
     fn play_path_impl(&mut self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {

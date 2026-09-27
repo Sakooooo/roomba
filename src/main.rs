@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::config::Config;
 use crate::library::{Library, Track};
+use crate::queue::Queue;
 use discord_rich_presence::activity::Activity;
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
 use iced::widget::{button, column, container, stack, text};
@@ -13,11 +14,13 @@ use rusqlite::Connection;
 mod config;
 mod library;
 mod player;
+mod queue;
 
 struct App {
     app_dirs: Option<AppDirs>,
     config: Config,
     library: Library,
+    queue: Queue,
     db_conn: Option<Connection>,
     player: player::Player,
     to_seek: Option<f32>,
@@ -30,7 +33,14 @@ enum Message {
     LibraryPicked(Option<rfd::FileHandle>),
     ScanLibrary(std::path::PathBuf),
     SaveLibrary(Library),
-    PlayTrack(Track),
+    PlayAlbumFrom { album: String, index: usize },
+    AddToQueue(Track),
+    RemoveFromQueue(usize),
+    JumpToQueue(usize),
+    PlayNext(Track),
+    Next,
+    Previous,
+    TrackFinished,
     PlayPause,
     PlaybackTick,
     Seek(f32),
@@ -96,6 +106,7 @@ impl App {
         let mut app = App {
             app_dirs,
             config,
+            queue: Queue::default(),
             library,
             db_conn,
             player,
@@ -123,7 +134,7 @@ impl App {
                 &track.album_title, &track.title, &track.album_artist
             ));
 
-            if self.player.is_playing() {
+            if !self.player.is_paused() {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default();
@@ -152,10 +163,39 @@ impl App {
     }
 
     fn subscription(&self) -> iced::Subscription<Message> {
-        if self.player.is_playing() {
+        if !self.player.is_paused() && self.queue.current().is_some() {
             iced::time::every(std::time::Duration::from_secs(1)).map(|_| Message::PlaybackTick)
         } else {
             iced::Subscription::none()
+        }
+    }
+
+    fn play_current_queue(&mut self) {
+        let Some(track) = self.queue.current().cloned() else {
+            return;
+        };
+
+        match self.player.play_path(&track.path) {
+            Ok(_) => {
+                println!("Playing {}", &track.title);
+
+                let same = self
+                    .player
+                    .current_track
+                    .as_ref()
+                    .is_some_and(|prev| prev.album_title == track.album_title);
+
+                if !same {
+                    self.player.current_cover = Some(iced::widget::image::Handle::from_bytes(
+                        track.get_cover_image(),
+                    ));
+                }
+                self.player.current_track = Some(track);
+                self.update_discord_status();
+            }
+            Err(e) => {
+                println!("Failed to play track! {}", e)
+            }
         }
     }
 
@@ -194,37 +234,18 @@ impl App {
                 }
                 Task::none()
             }
-            Message::PlayTrack(track) => {
-                match self.player.play_path(&track.path) {
-                    Ok(_) => {
-                        println!("Playing {}", &track.title);
-
-                        let same = self
-                            .player
-                            .current_track
-                            .as_ref()
-                            .is_some_and(|prev| prev.album_title == track.album_title);
-
-                        if !same {
-                            self.player.current_cover = Some(
-                                iced::widget::image::Handle::from_bytes(track.get_cover_image()),
-                            );
-                        }
-                        self.player.current_track = Some(track);
-                        self.update_discord_status();
-                    }
-                    Err(e) => {
-                        println!("Failed to play track! {}", e)
-                    }
-                }
-                Task::none()
-            }
             Message::PlayPause => {
                 self.player.toggle_pause();
                 self.update_discord_status();
                 Task::none()
             }
-            Message::PlaybackTick => Task::none(), // Redraws it
+            Message::PlaybackTick => {
+                if self.player.finished() {
+                    Task::done(Message::TrackFinished)
+                } else {
+                    Task::none()
+                }
+            }
             Message::Seek(secs) => {
                 self.to_seek = Some(secs);
                 Task::none()
@@ -242,6 +263,50 @@ impl App {
                 self.player.set_volume(vol);
                 Task::none()
             }
+            Message::PlayAlbumFrom { album, index } => {
+                if let Some(tracks) = self.library.tracks.get(&album) {
+                    self.queue.replace(tracks.clone(), index);
+                    self.play_current_queue();
+                }
+                Task::none()
+            }
+            Message::AddToQueue(track) => {
+                self.queue.append(track);
+                Task::none()
+            }
+            Message::RemoveFromQueue(index) => {
+                self.queue.remove(index);
+                Task::none()
+            }
+            Message::PlayNext(track) => {
+                self.queue.queue_next(track);
+                Task::none()
+            }
+            Message::Next | Message::TrackFinished => {
+                if self.queue.next().is_some() {
+                    self.play_current_queue();
+                } else {
+                    self.player.stop();
+                    self.update_discord_status();
+                };
+                Task::none()
+            }
+            Message::Previous => {
+                // replay current song if 3s in
+                // otherwise just go back normally
+                // every player does this lol
+                if self.player.get_position().as_secs() > 3 {
+                    let _ = self.player.seek(std::time::Duration::ZERO);
+                } else if self.queue.prev().is_some() {
+                    self.play_current_queue();
+                }
+                Task::none()
+            }
+            Message::JumpToQueue(index) => {
+                self.queue.jump_to(index);
+                self.play_current_queue();
+                Task::none()
+            }
         }
     }
 
@@ -250,11 +315,19 @@ impl App {
             |(album, tracks)| {
                 container(iced::widget::column![
                     text(album),
-                    iced::widget::column(tracks.iter().map(|track| {
-                        button(text(track.title.clone()))
-                            .on_press(Message::PlayTrack(track.clone()))
-                            .width(iced::Fill)
-                            .into()
+                    iced::widget::column(tracks.iter().enumerate().map(|(index, track)| {
+                        iced::widget::row![
+                            button(text(track.title.as_str()))
+                                .on_press(Message::PlayAlbumFrom {
+                                    album: album.clone(),
+                                    index,
+                                })
+                                .width(iced::Fill),
+                            button("play next").on_press(Message::PlayNext(track.clone())),
+                            button("add to queue").on_press(Message::AddToQueue(track.clone())),
+                        ]
+                        .spacing(4)
+                        .into()
                     }))
                 ])
                 .into()
@@ -276,12 +349,14 @@ impl App {
                 .current_track
                 .clone()
                 .map(|t| text(format!("Now playing: {} - {}", t.album_title, t.title))),
-            button(if self.player.is_playing() {
-                "pause"
-            } else {
+            button("prev").on_press(Message::Previous),
+            button(if self.player.is_paused() {
                 "play"
+            } else {
+                "pause"
             })
             .on_press(Message::PlayPause),
+            button("next").on_press(Message::Next),
             iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
                 .on_release(Message::ReleaseSeek)
                 .step(0.1),
@@ -290,10 +365,36 @@ impl App {
         .into()
     }
 
+    fn queue_view(&self) -> Element<'_, Message> {
+        let upcoming = self.queue.upcoming();
+        if upcoming.is_empty() {
+            return iced::widget::text("The queue is empty @_@").into();
+        }
+
+        let offset = self.queue.current.map(|i| i + 1).unwrap_or(0);
+
+        column![
+            text("next:"),
+            iced::widget::scrollable(column(upcoming.iter().enumerate().map(|(i, track)| {
+                iced::widget::row![
+                    button(
+                        text(format!("{} - {}", track.album_artist, track.title)).width(iced::Fill)
+                    )
+                    .on_press(Message::JumpToQueue(offset + i)),
+                    button("remove").on_press(Message::RemoveFromQueue(offset + i)),
+                ]
+                .spacing(4)
+                .into()
+            })))
+        ]
+        .into()
+    }
+
     fn view(&self) -> Element<'_, Message> {
-        let left: iced::widget::Container<'_, Message> = container(column![self.now_playing()])
-            .align_left(iced::Fill)
-            .height(iced::Fill);
+        let left: iced::widget::Container<'_, Message> =
+            container(column![self.now_playing(), self.queue_view()])
+                .align_left(iced::Fill)
+                .height(iced::Fill);
 
         let right: iced::widget::Container<'_, Message> =
             container(column![
