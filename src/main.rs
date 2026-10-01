@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::library::{Library, Track};
 use crate::queue::Queue;
 use discord_rich_presence::activity::Activity;
-use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use iced::widget::{button, column, container, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
@@ -20,11 +20,13 @@ struct App {
     app_dirs: Option<AppDirs>,
     config: Config,
     library: Library,
+    sorted_library: Library,
     queue: Queue,
     db_conn: Option<Connection>,
     player: player::Player,
     to_seek: Option<f32>,
     discord_rpc_client: Option<DiscordIpcClient>,
+    search_query: String,
 }
 
 #[derive(Clone)]
@@ -46,6 +48,7 @@ enum Message {
     Seek(f32),
     ReleaseSeek,
     Volume(f32),
+    SearchUpdated(String),
 }
 
 impl App {
@@ -107,11 +110,13 @@ impl App {
             app_dirs,
             config,
             queue: Queue::default(),
+            sorted_library: library.clone(),
             library,
             db_conn,
             player,
             to_seek: None,
             discord_rpc_client,
+            search_query: String::from(""),
         };
 
         app.update_discord_status();
@@ -311,32 +316,79 @@ impl App {
                 self.play_current_queue();
                 Task::none()
             }
+            Message::SearchUpdated(query) => {
+                // TODO: Move this into an async fuction and call it with Task
+                let threshold = 0.85;
+                dbg!(&query);
+                self.search_query = query;
+
+                let mut sorted: BTreeMap<String, Vec<Track>> = BTreeMap::new();
+
+                let q = self.search_query.to_lowercase();
+
+                let score = |s: &str| {
+                    let s = s.to_lowercase();
+                    if s.contains(&q) {
+                        1.0
+                    } else {
+                        strsim::jaro_winkler(&q, &s)
+                    }
+                };
+
+                for (album, tracks) in self.library.tracks.clone() {
+                    if score(&album) >= threshold {
+                        sorted.insert(album, tracks);
+                    } else {
+                        let matches: Vec<Track> = tracks
+                            .iter()
+                            .filter(|t| score(&t.title) >= threshold)
+                            .cloned()
+                            .collect();
+                        if !matches.is_empty() {
+                            sorted.insert(album.clone(), matches);
+                        }
+                    }
+                }
+
+                self.sorted_library = Library { tracks: sorted };
+
+                Task::none()
+            }
         }
     }
 
-    fn tracks(&self) -> iced::widget::Scrollable<'_, Message> {
-        iced::widget::scrollable(iced::widget::column(self.library.tracks.iter().map(
-            |(album, tracks)| {
-                container(iced::widget::column![
-                    text(album),
-                    iced::widget::column(tracks.iter().enumerate().map(|(index, track)| {
-                        iced::widget::row![
-                            button(text(track.title.as_str()))
-                                .on_press(Message::PlayAlbumFrom {
-                                    album: album.clone(),
-                                    index,
-                                })
-                                .width(iced::Fill),
-                            button("play next").on_press(Message::PlayNext(track.clone())),
-                            button("add to queue").on_press(Message::AddToQueue(track.clone())),
-                        ]
-                        .spacing(4)
-                        .into()
-                    }))
-                ])
-                .into()
-            },
-        )))
+    fn tracks(&self) -> iced::widget::Column<'_, Message> {
+        iced::widget::column![
+            iced::widget::text_input("Search...", &self.search_query)
+                .on_input(Message::SearchUpdated),
+            // TODO: do something about this taking forever to load
+            // probably try to create Space elements for unseen rows and only change what's visible when you scroll
+            iced::widget::scrollable(iced::widget::column(self.sorted_library.tracks.iter().map(
+                |(album, tracks)| {
+                    container(iced::widget::column![
+                        text(album),
+                        iced::widget::column(tracks.iter().skip(500).enumerate().map(
+                            |(index, track)| {
+                                iced::widget::row![
+                                    button(text(track.title.as_str()))
+                                        .on_press(Message::PlayAlbumFrom {
+                                            album: album.clone(),
+                                            index,
+                                        })
+                                        .width(iced::Fill),
+                                    button("play next").on_press(Message::PlayNext(track.clone())),
+                                    button("add to queue")
+                                        .on_press(Message::AddToQueue(track.clone())),
+                                ]
+                                .spacing(4)
+                                .into()
+                            }
+                        ))
+                    ])
+                    .into()
+                },
+            )))
+        ]
         .into()
     }
 
