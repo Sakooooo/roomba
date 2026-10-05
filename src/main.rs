@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::library::{Library, Track};
 use crate::queue::Queue;
 use discord_rich_presence::activity::Activity;
-use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
+use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
 use iced::widget::{button, column, container, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
@@ -328,18 +328,21 @@ impl App {
                 }
                 self.search_query = query.clone();
 
-
                 let mut sorted: BTreeMap<String, Vec<Track>> = BTreeMap::new();
 
                 if let Some(db_conn) = &self.db_conn {
-                    let escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                    let escaped = query
+                        .replace("\\", "\\\\")
+                        .replace("%", "\\%")
+                        .replace("_", "\\_");
                     let pattern = format!("%{}%", escaped);
 
                     let mut result_query = match db_conn.prepare(
                         "SELECT path, title, track, album_title, album_artist FROM tracks as track
                        WHERE track.title LIKE ?1
                          OR track.album_title like ?1
-                         OR track.album_artist like ?1") {
+                         OR track.album_artist like ?1",
+                    ) {
                         Ok(q) => q,
                         Err(e) => {
                             println!("Failed to query db {}", e);
@@ -361,7 +364,10 @@ impl App {
                         Ok(i) => {
                             for track in i {
                                 if let Ok(track) = track {
-                                    sorted.entry(track.album_title.clone()).or_default().push(track);
+                                    sorted
+                                        .entry(track.album_title.clone())
+                                        .or_default()
+                                        .push(track);
                                 }
                             }
                         }
@@ -390,23 +396,20 @@ impl App {
                 |(album, tracks)| {
                     container(iced::widget::column![
                         text(album),
-                        iced::widget::column(tracks.iter().enumerate().map(
-                            |(index, track)| {
-                                iced::widget::row![
-                                    button(text(track.title.as_str()))
-                                        .on_press(Message::PlayAlbumFrom {
-                                            album: album.clone(),
-                                            index,
-                                        })
-                                        .width(iced::Fill),
-                                    button("play next").on_press(Message::PlayNext(track.clone())),
-                                    button("add to queue")
-                                        .on_press(Message::AddToQueue(track.clone())),
-                                ]
-                                .spacing(4)
-                                .into()
-                            }
-                        ))
+                        iced::widget::column(tracks.iter().enumerate().map(|(index, track)| {
+                            iced::widget::row![
+                                button(text(track.title.as_str()))
+                                    .on_press(Message::PlayAlbumFrom {
+                                        album: album.clone(),
+                                        index,
+                                    })
+                                    .width(iced::Fill),
+                                button("play next").on_press(Message::PlayNext(track.clone())),
+                                button("add to queue").on_press(Message::AddToQueue(track.clone())),
+                            ]
+                            .spacing(4)
+                            .into()
+                        }))
                     ])
                     .into()
                 },
@@ -439,7 +442,7 @@ impl App {
             iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
                 .on_release(Message::ReleaseSeek)
                 .step(0.1),
-            iced::widget::slider(0.0..=1.0, self.player.volume, Message::Volume).step(0.05)
+            iced::widget::slider(0.0..=1.0, self.player.volume, Message::Volume).step(0.025)
         ])
         .into()
     }
