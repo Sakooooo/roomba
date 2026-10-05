@@ -61,7 +61,7 @@ impl Track {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Library {
     // path: String,
     pub tracks: BTreeMap<String, Vec<Track>>,
@@ -124,7 +124,6 @@ impl Library {
             .prepare("SELECT path, title, track, album_title, album_artist FROM tracks")
         {
             Ok(q) => {
-                println!("Got one");
                 q
             }
             Err(e) => {
@@ -162,8 +161,6 @@ impl Library {
                 String::from("Unknown artist")
             };
 
-            println!("Transforming");
-
             Ok(Track {
                 path,
                 title,
@@ -181,7 +178,6 @@ impl Library {
             println!("track iter");
 
             for track in track_iter {
-                println!("track iter thing");
                 match track {
                     Ok(t) => {
                         tracks

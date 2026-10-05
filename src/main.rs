@@ -235,6 +235,7 @@ impl App {
 
                 let library = Library::new_from_path(path);
                 self.library = library.clone();
+                self.sorted_library = self.library.clone();
                 Task::done(Message::SaveLibrary(library))
             }
             Message::SaveLibrary(library) => {
@@ -318,21 +319,27 @@ impl App {
             }
             Message::SearchUpdated(query) => {
                 // TODO: Move this into an async fuction and call it with Task
-                let threshold = 0.85;
                 dbg!(&query);
-                self.search_query = query;
+
+                if query.is_empty() {
+                    self.sorted_library = self.library.clone();
+                    self.search_query = query;
+                    return Task::none();
+                }
+                self.search_query = query.clone();
+
 
                 let mut sorted: BTreeMap<String, Vec<Track>> = BTreeMap::new();
 
                 if let Some(db_conn) = &self.db_conn {
-                    let result_query = match db_conn.prepare(
+                    let escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                    let pattern = format!("%{}%", escaped);
+
+                    let mut result_query = match db_conn.prepare(
                         "SELECT path, title, track, album_title, album_artist FROM tracks as track
-                       WHERE (track.title like '%?1%' or
-                         track.album_title like '%?1%' or
-                         track.album_artist like '%?1%'
-                       );
-                    ",
-                    ) {
+                       WHERE track.title LIKE ?1
+                         OR track.album_title like ?1
+                         OR track.album_artist like ?1") {
                         Ok(q) => q,
                         Err(e) => {
                             println!("Failed to query db {}", e);
@@ -340,7 +347,7 @@ impl App {
                         }
                     };
 
-                    let iter = result_query.query_map([], |row| {
+                    let iter = result_query.query_map([&pattern], |row| {
                         Ok(Track {
                             path: row.get(0)?,
                             title: row.get(1)?,
@@ -350,40 +357,25 @@ impl App {
                         })
                     });
 
+                    match iter {
+                        Ok(i) => {
+                            for track in i {
+                                if let Ok(track) = track {
+                                    sorted.entry(track.album_title.clone()).or_default().push(track);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("Failed to map rows to iter! {}", e);
+                        }
+                    }
+
+                    self.sorted_library = Library { tracks: sorted };
+
                     Task::none()
                 } else {
                     Task::none()
                 }
-
-                // let q = self.search_query.to_lowercase();
-
-                // let score = |s: &str| {
-                //     let s = s.to_lowercase();
-                //     if s.contains(&q) {
-                //         1.0
-                //     } else {
-                //         strsim::jaro_winkler(&q, &s)
-                //     }
-                // };
-
-                // for (album, tracks) in self.library.tracks.clone() {
-                //     if score(&album) >= threshold {
-                //         sorted.insert(album, tracks);
-                //     } else {
-                //         let matches: Vec<Track> = tracks
-                //             .iter()
-                //             .filter(|t| score(&t.title) >= threshold)
-                //             .cloned()
-                //             .collect();
-                //         if !matches.is_empty() {
-                //             sorted.insert(album.clone(), matches);
-                //         }
-                //     }
-                // }
-
-                // self.sorted_library = Library { tracks: sorted };
-
-                // Task::none()
             }
         }
     }
@@ -398,7 +390,7 @@ impl App {
                 |(album, tracks)| {
                     container(iced::widget::column![
                         text(album),
-                        iced::widget::column(tracks.iter().skip(500).enumerate().map(
+                        iced::widget::column(tracks.iter().enumerate().map(
                             |(index, track)| {
                                 iced::widget::row![
                                     button(text(track.title.as_str()))
