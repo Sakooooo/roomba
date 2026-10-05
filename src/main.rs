@@ -324,35 +324,66 @@ impl App {
 
                 let mut sorted: BTreeMap<String, Vec<Track>> = BTreeMap::new();
 
-                let q = self.search_query.to_lowercase();
-
-                let score = |s: &str| {
-                    let s = s.to_lowercase();
-                    if s.contains(&q) {
-                        1.0
-                    } else {
-                        strsim::jaro_winkler(&q, &s)
-                    }
-                };
-
-                for (album, tracks) in self.library.tracks.clone() {
-                    if score(&album) >= threshold {
-                        sorted.insert(album, tracks);
-                    } else {
-                        let matches: Vec<Track> = tracks
-                            .iter()
-                            .filter(|t| score(&t.title) >= threshold)
-                            .cloned()
-                            .collect();
-                        if !matches.is_empty() {
-                            sorted.insert(album.clone(), matches);
+                if let Some(db_conn) = &self.db_conn {
+                    let result_query = match db_conn.prepare(
+                        "SELECT path, title, track, album_title, album_artist FROM tracks as track
+                       WHERE (track.title like '%?1%' or
+                         track.album_title like '%?1%' or
+                         track.album_artist like '%?1%'
+                       );
+                    ",
+                    ) {
+                        Ok(q) => q,
+                        Err(e) => {
+                            println!("Failed to query db {}", e);
+                            return Task::none();
                         }
-                    }
+                    };
+
+                    let iter = result_query.query_map([], |row| {
+                        Ok(Track {
+                            path: row.get(0)?,
+                            title: row.get(1)?,
+                            track: row.get(2)?,
+                            album_title: row.get(3)?,
+                            album_artist: row.get(4)?,
+                        })
+                    });
+
+                    Task::none()
+                } else {
+                    Task::none()
                 }
 
-                self.sorted_library = Library { tracks: sorted };
+                // let q = self.search_query.to_lowercase();
 
-                Task::none()
+                // let score = |s: &str| {
+                //     let s = s.to_lowercase();
+                //     if s.contains(&q) {
+                //         1.0
+                //     } else {
+                //         strsim::jaro_winkler(&q, &s)
+                //     }
+                // };
+
+                // for (album, tracks) in self.library.tracks.clone() {
+                //     if score(&album) >= threshold {
+                //         sorted.insert(album, tracks);
+                //     } else {
+                //         let matches: Vec<Track> = tracks
+                //             .iter()
+                //             .filter(|t| score(&t.title) >= threshold)
+                //             .cloned()
+                //             .collect();
+                //         if !matches.is_empty() {
+                //             sorted.insert(album.clone(), matches);
+                //         }
+                //     }
+                // }
+
+                // self.sorted_library = Library { tracks: sorted };
+
+                // Task::none()
             }
         }
     }
