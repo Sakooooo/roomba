@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::library::{Library, Track};
 use crate::queue::Queue;
 use discord_rich_presence::activity::Activity;
-use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
+use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
 use iced::widget::{button, column, container, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
@@ -233,17 +233,22 @@ impl App {
             Message::ScanLibrary(path) => {
                 dbg!(&path);
 
-                let library = Library::new_from_path(path);
-                self.library = library.clone();
-                self.sorted_library = self.library.clone();
+                // let library = Library::new_from_path(path);
+                // self.library = library.clone();
+                // self.sorted_library = self.library.clone();
                 // Task::done(Message::SaveLibrary(library))
                 Task::perform(Library::new_from_path_async(path), Message::SaveLibrary)
             }
 
             Message::SaveLibrary(library) => {
-                if let Some(conn) = &self.db_conn {
+                let final_library: Library = if let Some(conn) = &self.db_conn {
                     library.save_to_db(conn);
-                }
+                    Library::new_from_db(conn)
+                } else {
+                    library.clone()
+                };
+                self.library = final_library.clone();
+                self.sorted_library = self.library.clone();
                 Task::none()
             }
             Message::PlayPause => {

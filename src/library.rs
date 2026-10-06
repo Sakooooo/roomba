@@ -1,15 +1,37 @@
 use std::{
-    collections::{BTreeMap, VecDeque}, path::{Path, PathBuf}, sync::Arc
+    collections::{BTreeMap, VecDeque},
+    path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use audiotags::{Album, Tag};
-use tokio::{sync::{Semaphore, mpsc}, task::JoinSet};
+use tokio::{
+    sync::{Semaphore, mpsc},
+    task::JoinSet,
+};
 
 const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
 
 // This needs to be calculated by thread count probably
-const MAX_CONCURRENT_DIRS: usize = 4;
-const MAX_CONCURRENT_SCANS: usize = 8;
+
+#[derive(Clone)]
+struct AsyncLimits {
+    directory: usize,
+    scans: usize,
+}
+
+impl Default for AsyncLimits {
+    fn default() -> Self {
+        let cores: usize = std::thread::available_parallelism()
+            .unwrap_or(std::num::NonZero::new(2).unwrap())
+            .into();
+
+        Self {
+            directory: (cores * 2).clamp(2, 16),
+            scans: (cores * 4).clamp(4, 48),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Track {
@@ -21,8 +43,8 @@ pub struct Track {
 }
 
 impl Track {
-        pub async fn new_from_path_async(path: PathBuf) -> Result<Self, ()> {
-            let metadata = Tag::new().read_from_path(&path);
+    pub async fn new_from_path_async(path: PathBuf) -> Result<Self, ()> {
+        let metadata = Tag::new().read_from_path(&path);
         if let Ok(metadata) = metadata {
             let title = metadata
                 .title()
@@ -49,7 +71,7 @@ impl Track {
             println!("Failed to read metadata");
             Err(())
         }
-        }
+    }
 
     pub fn new_from_path(path: PathBuf) -> Result<Self, ()> {
         let metadata = Tag::new().read_from_path(&path);
@@ -109,8 +131,7 @@ track INTEGER,
 album_title TEXT,
 album_artist TEXT,
 UNIQUE (title, album_title, album_artist)
-);",
-];
+);"];
 
 fn migrate_db(conn: &rusqlite::Connection) {
     println!("Applying migrations...");
@@ -157,11 +178,9 @@ impl Library {
         migrate_db(&conn);
 
         let mut track_query = match conn
-            .prepare("SELECT path, title, track, album_title, album_artist FROM tracks")
+            .prepare("SELECT path, title, track, album_title, album_artist FROM tracks GROUP BY album_artist, album_title, track")
         {
-            Ok(q) => {
-                q
-            }
+            Ok(q) => q,
             Err(e) => {
                 println!("Failed to prepare query {}", e);
                 return Self {
@@ -260,7 +279,7 @@ impl Library {
     async fn new_from_path_async_impl(path: &Path) -> Result<Self, ()> {
         if !path.exists() {
             println!("Library path doesn't exist.");
-            return Err(())
+            return Err(());
         }
 
         let tracks = Self::scan_async(path).await;
@@ -289,33 +308,58 @@ impl Library {
     }
 
     pub async fn scan_async(path: &Path) -> BTreeMap<String, Vec<Track>> {
+        let limits = AsyncLimits::default();
         // scan stuff here
-        // let mut queued_folders: Vec<PathBuf> = vec![path.to_owned()];
-
 
         // create async channel to communicate with
         let (sender, mut reciever) = mpsc::channel::<PathBuf>(1024);
-        let collect_task = tokio::spawn(Self::collect_files(path.to_path_buf(), sender));
+        let collect_task = tokio::spawn(Self::collect_files(
+            path.to_path_buf(),
+            sender,
+            limits.clone(),
+        ));
 
-        let scan_task_counter = Arc::new(Semaphore::new(MAX_CONCURRENT_SCANS));
-        let result: BTreeMap<String, Vec<Track>> = BTreeMap::new();
+        let mut scan_jobs: JoinSet<Result<Track, ()>> = JoinSet::new();
+        let mut result: BTreeMap<String, Vec<Track>> = BTreeMap::new();
 
-
-        while let Some(path) = reciever.recv().await {
-            // you got a license for that mate
-            let permit = scan_task_counter.clone().acquire_owned().await.unwrap();
-
-            tokio::spawn(async move {
-                match Track::new_from_path_async(path).await{
-                    Ok(track) => {
-                        println!("Async scan got track");
+        fn insert(
+            track: Result<Result<Track, ()>, tokio::task::JoinError>,
+            library_result: &mut BTreeMap<String, Vec<Track>>,
+        ) {
+            match track {
+                Ok(track) => {
+                    if let Ok(track) = track {
+                        library_result
+                            .entry(track.album_title.clone())
+                            .or_insert_with(Vec::new)
+                            .push(track)
                     }
-                    Err(_) => todo!(),
                 }
-            });
+                Err(e) => println!("Failed job {e}"),
+            }
         }
 
-result
+        while let Some(path) = reciever.recv().await {
+            if scan_jobs.len() >= limits.scans {
+                if let Some(track) = scan_jobs.join_next().await {
+                    insert(track, &mut result);
+                }
+            }
+            scan_jobs.spawn(Track::new_from_path_async(path));
+        }
+
+        collect_task.await.ok();
+        while let Some(track) = scan_jobs.join_next().await {
+            insert(track, &mut result);
+        }
+
+        // sort before sending
+
+        for tracks in result.values_mut() {
+            tracks.sort_by(|a, b| a.track.cmp(&b.track))
+        }
+
+        result
     }
 
     async fn collect_directory(directory: PathBuf) -> (Vec<PathBuf>, Vec<PathBuf>) {
@@ -326,7 +370,7 @@ result
             Ok(result) => result,
             Err(e) => {
                 println!("failed {}: {e}", directory.display());
-                return (files, directories)
+                return (files, directories);
             }
         };
 
@@ -348,7 +392,7 @@ result
         (files, directories)
     }
 
-    async fn collect_files(start: PathBuf, sender: mpsc::Sender<PathBuf>) {
+    async fn collect_files(start: PathBuf, sender: mpsc::Sender<PathBuf>, limits: AsyncLimits) {
         // holds the next folders
         let mut queue: VecDeque<PathBuf> = VecDeque::from([start]);
 
@@ -357,11 +401,12 @@ result
 
         loop {
             // make sure it's less than the maximum amount of tasks at once
-            while tasks.len() < MAX_CONCURRENT_DIRS {
+            while tasks.len() < limits.directory {
                 match queue.pop_front() {
                     Some(directory) => {
                         println!("Spawning async directory scanner");
-                        tasks.spawn(Self::collect_directory(directory)); },
+                        tasks.spawn(Self::collect_directory(directory));
+                    }
                     None => break,
                 }
             }
@@ -371,8 +416,9 @@ result
                     println!("Got async scan task result");
                     queue.extend(directories);
                     for file in files {
+                        println!("Sending file");
                         if sender.send(file).await.is_err() {
-                            return
+                            return;
                         }
                     }
                 }
