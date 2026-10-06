@@ -1,11 +1,15 @@
 use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
+    collections::{BTreeMap, VecDeque}, path::{Path, PathBuf}, sync::Arc
 };
 
 use audiotags::{Album, Tag};
+use tokio::{sync::{Semaphore, mpsc}, task::JoinSet};
 
 const MISSING_COVER_BYTES: &[u8] = include_bytes!("./missing.png");
+
+// This needs to be calculated by thread count probably
+const MAX_CONCURRENT_DIRS: usize = 4;
+const MAX_CONCURRENT_SCANS: usize = 8;
 
 #[derive(Debug, Clone)]
 pub struct Track {
@@ -17,6 +21,36 @@ pub struct Track {
 }
 
 impl Track {
+        pub async fn new_from_path_async(path: PathBuf) -> Result<Self, ()> {
+            let metadata = Tag::new().read_from_path(&path);
+        if let Ok(metadata) = metadata {
+            let title = metadata
+                .title()
+                .unwrap_or(&path.file_name().unwrap().to_str().unwrap())
+                .to_string();
+
+            let track = metadata.track_number().unwrap_or(0);
+
+            let album = metadata
+                .album()
+                .unwrap_or(Album::with_title("Unknown album"));
+
+            let album_title = album.title.to_string();
+            let album_artist = album.artist.unwrap_or("Unknown Album Artist").to_string();
+
+            Ok(Track {
+                path: path.to_string_lossy().to_string(),
+                title,
+                track,
+                album_title,
+                album_artist,
+            })
+        } else {
+            println!("Failed to read metadata");
+            Err(())
+        }
+        }
+
     pub fn new_from_path(path: PathBuf) -> Result<Self, ()> {
         let metadata = Tag::new().read_from_path(&path);
         if let Ok(metadata) = metadata {
@@ -215,6 +249,25 @@ impl Library {
         }
     }
 
+    pub async fn new_from_path_async(path: impl AsRef<Path>) -> Self {
+        if let Ok(library) = Self::new_from_path_async_impl(path.as_ref()).await {
+            library
+        } else {
+            panic!("Failed to make library");
+        }
+    }
+
+    async fn new_from_path_async_impl(path: &Path) -> Result<Self, ()> {
+        if !path.exists() {
+            println!("Library path doesn't exist.");
+            return Err(())
+        }
+
+        let tracks = Self::scan_async(path).await;
+
+        Ok(Library { tracks })
+    }
+
     pub fn new_from_path(path: impl AsRef<Path>) -> Self {
         if let Ok(library) = Self::new_from_path_impl(path.as_ref()) {
             library
@@ -233,6 +286,100 @@ impl Library {
         let tracks = Self::scan(path);
 
         Ok(Library { tracks })
+    }
+
+    pub async fn scan_async(path: &Path) -> BTreeMap<String, Vec<Track>> {
+        // scan stuff here
+        // let mut queued_folders: Vec<PathBuf> = vec![path.to_owned()];
+
+
+        // create async channel to communicate with
+        let (sender, mut reciever) = mpsc::channel::<PathBuf>(1024);
+        let collect_task = tokio::spawn(Self::collect_files(path.to_path_buf(), sender));
+
+        let scan_task_counter = Arc::new(Semaphore::new(MAX_CONCURRENT_SCANS));
+        let result: BTreeMap<String, Vec<Track>> = BTreeMap::new();
+
+
+        while let Some(path) = reciever.recv().await {
+            // you got a license for that mate
+            let permit = scan_task_counter.clone().acquire_owned().await.unwrap();
+
+            tokio::spawn(async move {
+                match Track::new_from_path_async(path).await{
+                    Ok(track) => {
+                        println!("Async scan got track");
+                    }
+                    Err(_) => todo!(),
+                }
+            });
+        }
+
+result
+    }
+
+    async fn collect_directory(directory: PathBuf) -> (Vec<PathBuf>, Vec<PathBuf>) {
+        let mut files: Vec<PathBuf> = Vec::new();
+        let mut directories: Vec<PathBuf> = Vec::new();
+
+        let mut read_task = match tokio::fs::read_dir(&directory).await {
+            Ok(result) => result,
+            Err(e) => {
+                println!("failed {}: {e}", directory.display());
+                return (files, directories)
+            }
+        };
+
+        loop {
+            match read_task.next_entry().await {
+                Ok(Some(entry)) => match entry.file_type().await {
+                    Ok(filetype) if filetype.is_dir() => directories.push(entry.path()),
+                    Ok(filetype) if filetype.is_file() => files.push(entry.path()),
+                    _ => {}
+                },
+                Ok(None) => break,
+                Err(e) => {
+                    println!("Failed at {}: {e}", directory.display());
+                    break;
+                }
+            }
+        }
+
+        (files, directories)
+    }
+
+    async fn collect_files(start: PathBuf, sender: mpsc::Sender<PathBuf>) {
+        // holds the next folders
+        let mut queue: VecDeque<PathBuf> = VecDeque::from([start]);
+
+        // holds the scan collection tasks
+        let mut tasks = JoinSet::new();
+
+        loop {
+            // make sure it's less than the maximum amount of tasks at once
+            while tasks.len() < MAX_CONCURRENT_DIRS {
+                match queue.pop_front() {
+                    Some(directory) => {
+                        println!("Spawning async directory scanner");
+                        tasks.spawn(Self::collect_directory(directory)); },
+                    None => break,
+                }
+            }
+
+            match tasks.join_next().await {
+                Some(Ok((files, directories))) => {
+                    println!("Got async scan task result");
+                    queue.extend(directories);
+                    for file in files {
+                        if sender.send(file).await.is_err() {
+                            return
+                        }
+                    }
+                }
+                Some(Err(e)) => println!("Scanner task failed! {e}"),
+                None => break,
+            }
+        }
     }
 
     // TODO: make this async

@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::library::{Library, Track};
 use crate::queue::Queue;
 use discord_rich_presence::activity::Activity;
-use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use iced::widget::{button, column, container, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
@@ -236,8 +236,10 @@ impl App {
                 let library = Library::new_from_path(path);
                 self.library = library.clone();
                 self.sorted_library = self.library.clone();
-                Task::done(Message::SaveLibrary(library))
+                // Task::done(Message::SaveLibrary(library))
+                Task::perform(Library::new_from_path_async(path), Message::SaveLibrary)
             }
+
             Message::SaveLibrary(library) => {
                 if let Some(conn) = &self.db_conn {
                     library.save_to_db(conn);
