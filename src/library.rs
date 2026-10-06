@@ -69,12 +69,14 @@ pub struct Library {
 
 const MIGRATIONS: &'static [&str] = &["CREATE TABLE tracks (
 id INTEGER PRIMARY KEY,
-path TEXT,
+path TEXT NOT NULL,
 title TEXT,
 track INTEGER,
 album_title TEXT,
-album_artist TEXT
-);"];
+album_artist TEXT,
+UNIQUE (title, album_title, album_artist)
+);",
+];
 
 fn migrate_db(conn: &rusqlite::Connection) {
     println!("Applying migrations...");
@@ -203,7 +205,7 @@ impl Library {
         for (album, tracks) in &self.tracks {
             for track in tracks {
                 match conn.execute(
-                    "INSERT INTO tracks (path, title, track, album_title, album_artist) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    "INSERT OR IGNORE INTO tracks (path, title, track, album_title, album_artist) VALUES (?1, ?2, ?3, ?4, ?5)",
                     (&track.path, &track.title, &track.track, &album, &track.album_artist)
                 ) {
                     Ok(_) => println!("Successfully saved track {}", &track.title),
