@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::library::{Library, Track};
 use crate::queue::Queue;
 use discord_rich_presence::activity::Activity;
-use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use iced::widget::{button, column, container, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
@@ -403,12 +403,12 @@ impl App {
                 |(album, tracks)| {
                     container(iced::widget::column![
                         text(album),
-                        iced::widget::column(tracks.iter().enumerate().map(|(index, track)| {
+                        iced::widget::column(tracks.iter().map(|track| {
                             iced::widget::row![
                                 button(text(track.title.as_str()))
                                     .on_press(Message::PlayAlbumFrom {
                                         album: album.clone(),
-                                        index,
+                                        index: (track.track).checked_sub(1).unwrap_or(0) as usize
                                     })
                                     .width(iced::Fill),
                                 button("play next").on_press(Message::PlayNext(track.clone())),
