@@ -393,6 +393,10 @@ impl App {
         }
     }
 
+    // TODO: Look into
+    // https://github.com/iced-rs/iced/blob/0.14.0/examples/gallery/
+    // https://github.com/tpaau/chilen/blob/main/src/gui/widget/virtual_list.rs
+    // to optimize
     fn tracks(&self) -> iced::widget::Column<'_, Message> {
         iced::widget::column![
             iced::widget::text_input("Search...", &self.search_query)

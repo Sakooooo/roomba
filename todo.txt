@@ -1,3 +1,6 @@
+mpris support
+win32 mpris equivalent support too
+
 status indicator for rescans
 
 do this later:
