@@ -106,6 +106,7 @@ impl Track {
     pub fn get_cover_image(&self) -> Vec<u8> {
         let metadata = Tag::new().read_from_path(&self.path);
 
+
         if let Ok(metadata) = metadata
             && let Some(album) = metadata.album()
             && let Some(cover) = album.cover
