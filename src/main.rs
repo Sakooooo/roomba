@@ -519,5 +519,6 @@ fn main() -> iced::Result {
             },
             ..Default::default()
         })
+        .theme(iced::Theme::KanagawaDragon)
         .run()
 }
