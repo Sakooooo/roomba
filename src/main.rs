@@ -512,6 +512,11 @@ fn main() -> iced::Result {
         .title("Roomba")
         .window(iced::window::Settings {
             icon,
+            #[cfg(target_os = "linux")]
+            platform_specific: iced::window::settings::PlatformSpecific {
+                application_id: "roomba".to_string(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .run()
