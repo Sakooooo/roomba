@@ -4156,6 +4156,7 @@ dependencies = [
  "tokio",
  "toml",
  "uuid 1.23.3",
+ "windows 0.62.2",
 ]
 
 [[package]]
