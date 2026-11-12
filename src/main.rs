@@ -35,6 +35,7 @@ enum Message {
     LibraryPicked(Option<rfd::FileHandle>),
     ScanLibrary(std::path::PathBuf),
     SaveLibrary(Library),
+    LibraryError(String),
     PlayAlbumFrom { album: String, index: usize },
     AddToQueue(Track),
     RemoveFromQueue(usize),
@@ -237,7 +238,15 @@ impl App {
                 // self.library = library.clone();
                 // self.sorted_library = self.library.clone();
                 // Task::done(Message::SaveLibrary(library))
-                Task::perform(Library::new_from_path_async(path), Message::SaveLibrary)
+                Task::perform(Library::new_from_path_async(path), |result| match result {
+                    Ok(library) => Message::SaveLibrary(library),
+                    Err(e) => Message::LibraryError(e.to_string()),
+                })
+            }
+
+            Message::LibraryError(error) => {
+                println!("Failed to scan library {}", error);
+                Task::none()
             }
 
             Message::SaveLibrary(library) => {

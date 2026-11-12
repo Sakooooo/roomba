@@ -20,6 +20,19 @@ struct AsyncLimits {
     scans: usize,
 }
 
+#[derive(Debug)]
+pub enum LibraryError {
+    FailedScan,
+}
+
+impl std::fmt::Display for LibraryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Failed to read library.")
+    }
+}
+
+impl std::error::Error for LibraryError {}
+
 impl Default for AsyncLimits {
     fn default() -> Self {
         let cores: usize = std::thread::available_parallelism()
@@ -273,11 +286,11 @@ impl Library {
         }
     }
 
-    pub async fn new_from_path_async(path: impl AsRef<Path>) -> Self {
+    pub async fn new_from_path_async(path: impl AsRef<Path>) -> Result<Self, LibraryError> {
         if let Ok(library) = Self::new_from_path_async_impl(path.as_ref()).await {
-            library
+            Ok(library)
         } else {
-            panic!("Failed to make library");
+            Err(LibraryError::FailedScan)
         }
     }
 
