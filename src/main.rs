@@ -22,6 +22,7 @@ struct App {
     library: Library,
     sorted_library: Library,
     queue: Queue,
+    db_path: std::path::PathBuf,
     db_conn: Option<Connection>,
     player: player::Player,
     to_seek: Option<f32>,
@@ -35,6 +36,7 @@ enum Message {
     LibraryPicked(Option<rfd::FileHandle>),
     ScanLibrary(std::path::PathBuf),
     SaveLibrary(Library),
+    LibraryLoaded(Library),
     LibraryError(String),
     PlayAlbumFrom { album: String, index: usize },
     AddToQueue(Track),
@@ -74,7 +76,7 @@ impl App {
             std::path::Path::new("./roomba.db").to_path_buf()
         };
 
-        let db_conn = match Connection::open(db_path) {
+        let db_conn = match Connection::open(&db_path) {
             Ok(c) => Some(c),
             Err(e) => {
                 println!(
@@ -113,6 +115,7 @@ impl App {
             queue: Queue::default(),
             sorted_library: library.clone(),
             library,
+            db_path,
             db_conn,
             player,
             to_seek: None,
@@ -244,21 +247,35 @@ impl App {
                 })
             }
 
+            Message::LibraryLoaded(library) => {
+                self.sorted_library = library.clone();
+                self.library = library;
+                Task::none()
+            }
+
             Message::LibraryError(error) => {
                 println!("Failed to scan library {}", error);
                 Task::none()
             }
 
             Message::SaveLibrary(library) => {
-                let final_library: Library = if let Some(conn) = &self.db_conn {
-                    library.save_to_db(conn);
-                    Library::new_from_db(conn)
-                } else {
-                    library.clone()
-                };
-                self.library = final_library.clone();
-                self.sorted_library = self.library.clone();
-                Task::none()
+                // async has to have everything owned
+                let db_path = self.db_path.clone();
+                Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || -> Result<Library, String> {
+                            let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+                            library.save_to_db(&conn);
+                            Ok(Library::new_from_db(&conn))
+                        })
+                        .await
+                        .unwrap_or_else(|e| Err(e.to_string()))
+                    },
+                    |result| match result {
+                        Ok(library) => Message::LibraryLoaded(library),
+                        Err(e) => Message::LibraryError(e),
+                    },
+                )
             }
             Message::PlayPause => {
                 self.player.toggle_pause();
