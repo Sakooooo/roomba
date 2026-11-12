@@ -346,9 +346,9 @@ impl App {
 
                     let mut result_query = match db_conn.prepare(
                         "SELECT path, title, track, album_title, album_artist FROM tracks as track
-                       WHERE track.title LIKE ?1
-                         OR track.album_title like ?1
-                         OR track.album_artist like ?1",
+                         WHERE track.title LIKE ?1 ESCAPE '\\'
+                         OR track.album_title like ?1 ESCAPE '\\'
+                         OR track.album_artist like ?1 ESCAPE '\\'",
                     ) {
                         Ok(q) => q,
                         Err(e) => {
