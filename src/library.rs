@@ -106,7 +106,6 @@ impl Track {
     pub fn get_cover_image(&self) -> Vec<u8> {
         let metadata = Tag::new().read_from_path(&self.path);
 
-
         if let Ok(metadata) = metadata
             && let Some(album) = metadata.album()
             && let Some(cover) = album.cover
@@ -179,7 +178,7 @@ impl Library {
         migrate_db(&conn);
 
         let mut track_query = match conn
-            .prepare("SELECT path, title, track, album_title, album_artist FROM tracks GROUP BY album_artist, album_title, track")
+            .prepare("SELECT path, title, track, album_title, album_artist FROM tracks GROUP BY album_artist, album_title, track HAVING COUNT(*) >= 0")
         {
             Ok(q) => q,
             Err(e) => {
