@@ -258,7 +258,7 @@ impl Library {
         for (album, tracks) in &self.tracks {
             for track in tracks {
                 match conn.execute(
-                    "INSERT OR IGNORE INTO tracks (path, title, track, album_title, album_artist) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    "INSERT INTO tracks (path, title, track, album_title, album_artist) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(title, album_title, album_artist) DO UPDATE set path = ?1",
                     (&track.path, &track.title, &track.track, &album, &track.album_artist)
                 ) {
                     Ok(_) => println!("Successfully saved track {}", &track.title),
