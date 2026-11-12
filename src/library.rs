@@ -56,36 +56,6 @@ pub struct Track {
 }
 
 impl Track {
-    pub async fn new_from_path_async(path: PathBuf) -> Result<Self, ()> {
-        let metadata = Tag::new().read_from_path(&path);
-        if let Ok(metadata) = metadata {
-            let title = metadata
-                .title()
-                .unwrap_or(&path.file_name().unwrap().to_str().unwrap())
-                .to_string();
-
-            let track = metadata.track_number().unwrap_or(0);
-
-            let album = metadata
-                .album()
-                .unwrap_or(Album::with_title("Unknown album"));
-
-            let album_title = album.title.to_string();
-            let album_artist = album.artist.unwrap_or("Unknown Album Artist").to_string();
-
-            Ok(Track {
-                path: path.to_string_lossy().to_string(),
-                title,
-                track,
-                album_title,
-                album_artist,
-            })
-        } else {
-            println!("Failed to read metadata");
-            Err(())
-        }
-    }
-
     pub fn new_from_path(path: PathBuf) -> Result<Self, ()> {
         let metadata = Tag::new().read_from_path(&path);
         if let Ok(metadata) = metadata {
@@ -381,7 +351,7 @@ impl Library {
                     insert(track, &mut result);
                 }
             }
-            scan_jobs.spawn(Track::new_from_path_async(path));
+            scan_jobs.spawn_blocking(move || Track::new_from_path(path));
         }
 
         collect_task.await.ok();
