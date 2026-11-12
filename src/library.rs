@@ -273,17 +273,35 @@ impl Library {
     }
 
     pub fn save_to_db(&self, conn: &rusqlite::Connection) {
+        // TODO: DBError
+        let Ok(tx) = conn.unchecked_transaction() else {
+            return;
+        };
+
         for (album, tracks) in &self.tracks {
+            let Ok(mut query) = tx.prepare_cached(
+            "INSERT INTO tracks (path, title, track, album_title, album_artist) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(title, album_title, album_artist) DO UPDATE set path = ?1",
+             ) else {
+                return;
+            };
             for track in tracks {
-                match conn.execute(
-                    "INSERT INTO tracks (path, title, track, album_title, album_artist) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(title, album_title, album_artist) DO UPDATE set path = ?1",
-                    (&track.path, &track.title, &track.track, &album, &track.album_artist)
-                ) {
+                match query.execute((
+                    &track.path,
+                    &track.title,
+                    &track.track,
+                    &album,
+                    &track.album_artist,
+                )) {
                     Ok(_) => println!("Successfully saved track {}", &track.title),
                     Err(e) => println!("Failed to save track! {}", e),
                 };
             }
         }
+
+        match tx.commit() {
+            Ok(_) => println!("Commited to db successfully"),
+            Err(e) => println!("Failed to commit to db: {}", e),
+        };
     }
 
     pub async fn new_from_path_async(path: impl AsRef<Path>) -> Result<Self, LibraryError> {
