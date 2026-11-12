@@ -61,7 +61,13 @@ impl Track {
         if let Ok(metadata) = metadata {
             let title = metadata
                 .title()
-                .unwrap_or(&path.file_name().unwrap().to_str().unwrap())
+                .map(str::to_string)
+                .unwrap_or_else(|| {
+                    path.file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned()
+                })
                 .to_string();
 
             let track = metadata.track_number().unwrap_or(0);
