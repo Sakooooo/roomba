@@ -156,7 +156,12 @@ fn migrate_db(conn: &rusqlite::Connection) {
         for migration_number in version..length {
             match conn.execute(MIGRATIONS[migration_number as usize], ()) {
                 Ok(_) => println!("Migration {} was successful", migration_number),
-                Err(e) => println!("failed to run migration {}, {}", migration_number, e),
+                Err(e) => {
+                    panic!(
+                        "failed to run migrations!!! number: {}, {}",
+                        migration_number, e
+                    );
+                }
             };
 
             let pragma_update = format!("PRAGMA user_version = {}", migration_number + 1);
