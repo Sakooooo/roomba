@@ -4,8 +4,8 @@ use crate::config::Config;
 use crate::library::{Library, Track};
 use crate::queue::Queue;
 use discord_rich_presence::activity::Activity;
-use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
-use iced::widget::{button, column, container, stack, text};
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
+use iced::widget::{button, column, container, row, stack, text};
 use iced::{Element, Task};
 use platform_dirs::AppDirs;
 use rfd::AsyncFileDialog;
@@ -462,26 +462,59 @@ impl App {
             .to_seek
             .unwrap_or_else(|| self.player.get_position().as_secs_f32());
 
-        container(column![
-            container(self.player.current_cover.clone().map(iced::widget::image)).width(512),
-            self.player
-                .current_track
-                .clone()
-                .map(|t| text(format!("Now playing: {} - {}", t.album_title, t.title))),
-            button("prev").on_press(Message::Previous),
-            button(if self.player.is_paused() {
-                "play"
-            } else {
-                "pause"
-            })
-            .on_press(Message::PlayPause),
-            button("next").on_press(Message::Next),
-            iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
-                .on_release(Message::ReleaseSeek)
-                .step(0.1),
-            iced::widget::slider(0.0..=1.0, self.player.volume, Message::Volume).step(0.025)
+        container(row![
+            container(self.player.current_cover.clone().map(iced::widget::image))
+                .width(256)
+                .height(256)
+                .align_bottom(iced::Fill),
+            container(column![
+                self.player
+                    .current_track
+                    .clone()
+                    .map(|t| text(format!("{} - {}", t.album_title, t.title))),
+                row![
+                    button("prev").on_press(Message::Previous),
+                    button(if self.player.is_paused() {
+                        "play"
+                    } else {
+                        "pause"
+                    })
+                    .on_press(Message::PlayPause),
+                    button("next").on_press(Message::Next),
+                    column![
+                        iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
+                            .on_release(Message::ReleaseSeek)
+                            .step(0.1),
+                        iced::widget::slider(0.0..=1.0, self.player.volume, Message::Volume)
+                            .step(0.025)
+                    ]
+                ]
+            ])
+            .align_bottom(iced::Fill)
         ])
+        .padding(2)
         .into()
+
+        // container(column![
+        //     container(self.player.current_cover.clone().map(iced::widget::image)).width(512),
+        //     self.player
+        //         .current_track
+        //         .clone()
+        //         .map(|t| text(format!("Now playing: {} - {}", t.album_title, t.title))),
+        //     button("prev").on_press(Message::Previous),
+        //     button(if self.player.is_paused() {
+        //         "play"
+        //     } else {
+        //         "pause"
+        //     })
+        //     .on_press(Message::PlayPause),
+        //     button("next").on_press(Message::Next),
+        //     iced::widget::slider(0.0..=total.max(0.01), position, Message::Seek)
+        //         .on_release(Message::ReleaseSeek)
+        //         .step(0.1),
+        //     iced::widget::slider(0.0..=1.0, self.player.volume, Message::Volume).step(0.025)
+        // ])
+        // .into()
     }
 
     fn queue_view(&self) -> Element<'_, Message> {
@@ -515,14 +548,19 @@ impl App {
                 .align_left(iced::Fill)
                 .height(iced::Fill);
 
-        let right: iced::widget::Container<'_, Message> =
-            container(column![
-                button(text("Pick Library")).on_press(Message::PickFolder),
-                button(text("I have to use this button because for some reason, my xdg portal is broken and I don't know why!")).on_press(Message::ScanLibrary(std::path::Path::new("/home/user/Music").into())),
-                self.tracks()
-            ]).align_right(iced::Fill).height(iced::Fill);
+        let right: iced::widget::Container<'_, Message> = container(column![
+            button(text("Pick Library")).on_press(Message::PickFolder),
+            self.tracks()
+        ])
+        .align_right(iced::Fill)
+        .height(iced::Fill);
 
-        let content = iced::widget::row![left, right];
+        // let content = iced::widget::row![left, right];
+        let content = iced::widget::column![
+            container(self.tracks()).align_top(iced::Fill),
+            container(self.now_playing()).align_bottom(256),
+        ]
+        .height(iced::Fill);
 
         stack![content].into()
     }
