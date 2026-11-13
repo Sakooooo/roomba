@@ -5,8 +5,8 @@ use crate::library::{Library, Track};
 use crate::queue::Queue;
 use discord_rich_presence::activity::Activity;
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
-use iced::widget::{button, column, container, row, stack, text};
-use iced::{Element, Task};
+use iced::widget::{button, center, column, container, mouse_area, opaque, row, stack, text};
+use iced::{Color, Element, Task};
 use platform_dirs::AppDirs;
 use rfd::AsyncFileDialog;
 use rusqlite::Connection;
@@ -15,8 +15,39 @@ mod config;
 mod library;
 mod player;
 mod queue;
+mod settings;
 
-struct App {
+// Taken from https://github.com/iced-rs/iced/blob/0.14.0/examples/modal/src/main.rs
+fn modal<'a, Message>(
+    base: impl Into<Element<'a, Message>>,
+    content: impl Into<Element<'a, Message>>,
+    on_blur: Message,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    stack![
+        base.into(),
+        opaque(
+            mouse_area(center(opaque(content)).style(|_theme| {
+                container::Style {
+                    background: Some(
+                        Color {
+                            a: 0.8,
+                            ..Color::BLACK
+                        }
+                        .into(),
+                    ),
+                    ..container::Style::default()
+                }
+            }))
+            .on_press(on_blur)
+        )
+    ]
+    .into()
+}
+
+pub struct App {
     app_dirs: Option<AppDirs>,
     config: Config,
     library: Library,
@@ -28,10 +59,11 @@ struct App {
     to_seek: Option<f32>,
     discord_rpc_client: Option<DiscordIpcClient>,
     search_query: String,
+    settings_open: bool,
 }
 
 #[derive(Clone)]
-enum Message {
+pub enum Message {
     PickFolder,
     LibraryPicked(Option<rfd::FileHandle>),
     ScanLibrary(std::path::PathBuf),
@@ -52,6 +84,8 @@ enum Message {
     ReleaseSeek,
     Volume(f32),
     SearchUpdated(String),
+    OpenSettings,
+    CloseSettings,
 }
 
 impl App {
@@ -121,6 +155,7 @@ impl App {
             to_seek: None,
             discord_rpc_client,
             search_query: String::from(""),
+            settings_open: false,
         };
 
         app.update_discord_status();
@@ -416,6 +451,14 @@ impl App {
                     Task::none()
                 }
             }
+            Message::OpenSettings => {
+                self.settings_open = true;
+                Task::none()
+            }
+            Message::CloseSettings => {
+                self.settings_open = false;
+                Task::none()
+            }
         }
     }
 
@@ -557,12 +600,17 @@ impl App {
 
         // let content = iced::widget::row![left, right];
         let content = iced::widget::column![
+            button(text("Settings")).on_press(Message::OpenSettings),
             container(self.tracks()).align_top(iced::Fill),
             container(self.now_playing()).align_bottom(256),
         ]
         .height(iced::Fill);
 
-        stack![content].into()
+        if self.settings_open {
+            modal(content, self.settings_view(), Message::CloseSettings)
+        } else {
+            stack![content].into()
+        }
     }
 }
 fn main() -> iced::Result {
